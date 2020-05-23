@@ -1,0 +1,40 @@
+﻿<div class="character-button @(Installed ? string.Empty : "disabled")" @onclick="@RouteAction">
+    <div>
+        <div>
+            <div class="vertical-align-helper"></div>
+            <img src="@DisplayImage" class="vertical-align" />
+            <div class="button-header" style="filter: red">
+                <img src="img/button-top-@(DisplayColor ?? "blue").svg" />
+            </div>
+            <div class="button-footer">
+                <img src="img/button-bottom-@(DisplayColor ?? "blue").svg" />
+            </div>
+            <div class="replacement-indicator">
+                <img src="img/mod-@(ReplacementMod ? "" : "no")replace.svg" />
+            </div>
+        </div>
+
+        <div class="button-title-banner">
+            <span class="button-title">@DisplayName</span>
+        </div>
+    </div>
+    <div class="install-icon">
+        <div class="vertical-align-helper"></div>
+        <img src="img/install-icon.svg" class="vertical-align" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public string DisplayName { get; set; }
+    [Parameter] public string DisplayImage { get; set; }
+    [Parameter] public string DisplayColor { get; set; }
+    [Parameter] public string IDName { get; set; }
+    [Parameter] public bool ReplacementMod { get; set; }
+    [Parameter] public bool Installed { get; set; }
+    [Parameter] public EventCallback<string> OnClick { get; set; }
+
+    protected async void RouteAction()
+    {
+        await OnClick.InvokeAsync(IDName);
+    }
+}

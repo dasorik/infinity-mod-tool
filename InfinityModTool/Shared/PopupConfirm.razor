@@ -1,0 +1,58 @@
+﻿<div>
+    @if (Show)
+    {
+        <div class="popup-container">
+            <div class="popup-dialog">
+                @if (ShowIcon)
+                {
+                    <div class="popup-icon">
+                        <img src="img/@GetAlertIcon()" />
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(Title))
+                {
+                    <div class="popup-title">
+                        @Title
+                    </div>
+                }
+                <div class="popup-message">
+                    @Message
+                </div>
+                <div class="popup-buttons">
+                    <button type="button" class="btn btn-warning" @onclick="() => Confirmation(false)">@CancelText</button>
+                    <button type="button" class="btn btn-primary" @onclick="() => Confirmation(true)">@ConfirmText</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public string Title { get; set; } = null;
+    [Parameter] public string Message { get; set; } = "[Insert Confirmation Message]";
+    [Parameter] public string ConfirmText { get; set; } = "Yes";
+    [Parameter] public string CancelText { get; set; } = "No";
+    [Parameter] public bool ShowIcon { get; set; } = true;
+    [Parameter] public AlertLevel Type { get; set; }
+    [Parameter] public EventCallback<bool> ConfirmedChanged { get; set; }
+
+    public async Task Confirmation(bool value)
+    {
+        Show = false;
+        await ConfirmedChanged.InvokeAsync(value);
+    }
+
+    private string GetAlertIcon()
+    {
+        switch (Type)
+        {
+            case AlertLevel.Info:
+                return "alert-info.svg";
+            case AlertLevel.Warning:
+                return "alert-warning.svg";
+            default:
+                return "alert-info.svg";
+        }
+    }
+}

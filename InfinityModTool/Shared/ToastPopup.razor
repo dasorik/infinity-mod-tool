@@ -1,0 +1,18 @@
+﻿@inject InfinityModTool.Services.ToastService toastService;
+
+<div class="toast-popup">
+
+</div>
+
+@code {
+    [Parameter] public decimal? ActiveTime { get; set; } = 5m;
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public AlertLevel Type { get; set; } = AlertLevel.Info;
+
+    public readonly Guid ID = Guid.NewGuid();
+
+    private void Remove()
+    {
+        toastService.RemoveToast(this);
+    }
+}

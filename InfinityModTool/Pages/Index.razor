@@ -1,0 +1,74 @@
+﻿@page "/"
+@inject InfinityModTool.Services.ModService modService;
+
+<PopupConfirm Type="@AlertLevel.Warning" Title="@(Install ? "Install Mod?" : "Uninstall Mod?")" Message="This will modify your Disney Infinity 3.0 game installation" ConfirmedChanged="@(async () => await InstallUninstall(InstallContext))" Show="@ShowConfirmation"></PopupConfirm>
+<PopupAlert Message="@WarningMessage" OnDismissed="@(() => ShowWarning = false)" Show="@ShowWarning"></PopupAlert>
+
+@if (!string.IsNullOrEmpty(@WarningMessage))
+{
+    <BannerAlert Type="Warning" Message="@WarningMessage"></BannerAlert>
+}
+
+@foreach (var mod in modService.AvailableCharacterMods)
+{
+    <CharacterButton IDName="@mod.Name" DisplayName="@mod.DisplayName" DisplayImage="@mod.DisplayImage" DisplayColor="@mod.DisplayColor" ReplacementMod="@mod.ReplaceCharacter" Installed="@modService.IsModInstalled(mod.Name)" OnClick="@SelectCharacterMod"></CharacterButton>
+}
+
+@code {
+    bool ShowConfirmation = false;
+    bool ShowWarning = false;
+    string WarningMessage = null;
+    bool Install = false;
+    InfinityModTool.Data.CharacterModLink InstallContext;
+
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrEmpty(modService.Settings.SteamInstallationPath))
+        {
+            WarningMessage = "Steam installation path has not been set, please set this via the settings tab";
+            return;
+        }
+    }
+
+    void ShowConfirmationModal()
+    {
+        ShowConfirmation = true;
+    }
+
+    void SelectCharacterMod(string idName)
+    {
+        if (string.IsNullOrEmpty(modService.Settings.SteamInstallationPath))
+        {
+            WarningMessage = "Steam installation path has not been set, please set this in 'Settings'";
+            ShowWarning = true;
+            return;
+        }
+
+        var modData = modService.GetCharacterData(idName);
+        Install = !modService.IsModInstalled(idName);
+
+        if (modData.ReplaceCharacter)
+        {
+            throw new NotImplementedException();
+        }
+        else
+        {
+            InstallContext = new Data.CharacterModLink() { CharacterID = idName, ReplacementCharacterID = null };
+            ShowConfirmation = true;
+        }
+    }
+
+    async Task InstallUninstall(InfinityModTool.Data.CharacterModLink modification)
+    {
+        this.ShowConfirmation = false;
+
+        if (Install)
+        {
+            await modService.InstallCharacterMod(modification.CharacterID, modification.ReplacementCharacterID);
+        }
+        else
+        {
+            await modService.UninstallCharacterMod(modification.CharacterID);
+        }
+    }
+}

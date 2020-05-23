@@ -1,0 +1,25 @@
+﻿<div class="alert @GetClass()">
+    <span class="icon @GetClass()"></span>@Message
+</div>
+
+@code {
+    [Parameter] public string Type { get; set; } = "Info";
+    [Parameter] public string Message { get; set; } = "";
+
+    string GetClass()
+    {
+        switch (Type)
+        {
+            case "Info":
+                return "alert-info";
+            case "Success":
+                return "alert-success";
+            case "Warning":
+                return "alert-warning";
+            case "Error":
+                return "alert-danger";
+            default:
+                return "alert-info";
+        }
+    }
+}
