@@ -1,0 +1,16 @@
+{
+  "CharacterIDs": [
+    {
+      "ID": "TRN_Quorra",
+      "DisplayName": "TRON - Quorra"
+    },
+    {
+      "ID": "TRN_Sam",
+      "DisplayName": "TRON - Sam"
+    },
+    {
+      "ID": "REB_Sabine",
+      "DisplayName": "Star Wars Rebels - Sabine"
+    }
+  ]
+}
