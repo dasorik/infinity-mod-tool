@@ -29,7 +29,7 @@ No actual mod files have been included in this repository, but can easily be cre
   "DisplayName": "Example Name", // This is the name as shown in the 
   "DisplayColor": "purple", // This affects the frames of the character portrait, ie. "red"/"purple"
   "DisplayImage": "data:image/png;base64..." // This will be displayed as the portrait image on the installation button
-
+}
 ```
 
 ## Building
