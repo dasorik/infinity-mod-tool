@@ -1,33 +1,29 @@
 ﻿<div>
-    @if (Show)
-    {
-        <div class="popup-container">
-            <div class="popup-dialog">
-                @if (ShowIcon)
-                {
-                    <div class="popup-icon">
-                        <img src="img/alert-info.svg" />
-                    </div>
-                }
-                @if (!string.IsNullOrEmpty(Title))
-                {
-                    <div class="popup-title">
-                        @Title
-                    </div>
-                }
-                <div class="popup-message">
-                    @Message
+    <div class="popup-container">
+        <div class="popup-dialog">
+            @if (ShowIcon)
+            {
+                <div class="popup-icon">
+                    <img src="img/alert-info.svg" />
                 </div>
-                <div class="popup-buttons">
-                    <button type="button" class="btn btn-primary" @onclick="OnDismissed">Ok</button>
+            }
+            @if (!string.IsNullOrEmpty(Title))
+            {
+                <div class="popup-title">
+                    @Title
                 </div>
+            }
+            <div class="popup-message">
+                @Message
+            </div>
+            <div class="popup-buttons">
+                <button type="button" class="btn btn-primary" @onclick="OnDismissed">Ok</button>
             </div>
         </div>
-    }
+    </div>
 </div>
 
 @code {
-    [Parameter] public bool Show { get; set; }
     [Parameter] public string Title { get; set; } = null;
     [Parameter] public string Message { get; set; } = "[Insert Alert Message]";
     [Parameter] public string OkText { get; set; } = "Ok";

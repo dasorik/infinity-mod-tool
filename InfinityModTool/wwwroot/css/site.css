@@ -277,6 +277,10 @@ img .vertical-align {
     transform: translate(-50%,-50%);
 }
 
+    .popup-dialog.wide {
+        width: 550px;
+    }
+
     .popup-dialog button {
         min-width: 80px;
     }
@@ -408,4 +412,7 @@ img .vertical-align {
         height: auto;
     }
 
-        
+.replacement-select {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}

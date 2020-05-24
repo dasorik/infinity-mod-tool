@@ -1,12 +1,29 @@
 ﻿@page "/"
 @inject InfinityModTool.Services.ModService modService;
 
-<PopupConfirm Type="@AlertLevel.Warning" Title="@(Install ? "Install Mod?" : "Uninstall Mod?")" Message="This will modify your Disney Infinity 3.0 game installation" ConfirmedChanged="@(async () => await InstallUninstall(InstallContext))" Show="@ShowConfirmation"></PopupConfirm>
-<PopupAlert Message="@WarningMessage" OnDismissed="@(() => ShowWarning = false)" Show="@ShowWarning"></PopupAlert>
-
-@if (!string.IsNullOrEmpty(@WarningMessage))
+@if (showLoadingIcon)
 {
-    <BannerAlert Type="Warning" Message="@WarningMessage"></BannerAlert>
+    <LoadingScreen></LoadingScreen>
+}
+
+@if (showConfirmation)
+{
+    <PopupConfirm Type="@AlertLevel.Warning" Title="@GetInstallMessage()" Message="This will modify your Disney Infinity 3.0 game installation" ConfirmedChanged="@(async (confirmed) => await InstallUninstall(confirmed, installContext))"></PopupConfirm>
+}
+
+@if (showReplaceConfirmation)
+{
+    <PopupConfirmReplace Type="@AlertLevel.Warning" Title="@GetInstallMessage()" Message="Please select a character below to replace, This will modify your Disney Infinity 3.0 game installation" ConfirmedPressed="@(async (id) => await InstallUninstall(id, installContext))" CancelPressed="() => showReplaceConfirmation = false" Options="@modService.GetAvailableReplacementCharacters(installContext.CharacterID)"></PopupConfirmReplace>
+}
+
+@if (showWarning)
+{
+    <PopupAlert Message="@warningMessage" OnDismissed="@(() => showWarning = false)" Show="@showWarning"></PopupAlert>
+}
+
+@if (!string.IsNullOrEmpty(warningMessage))
+{
+    <BannerAlert Type="Warning" Message="@warningMessage"></BannerAlert>
 }
 
 @foreach (var mod in modService.AvailableCharacterMods)
@@ -15,54 +32,68 @@
 }
 
 @code {
-    bool ShowConfirmation = false;
-    bool ShowWarning = false;
-    string WarningMessage = null;
-    bool Install = false;
-    InfinityModTool.Data.CharacterModLink InstallContext;
+    bool showLoadingIcon = false;
+    bool showConfirmation = false;
+    bool showReplaceConfirmation = false;
+    bool showWarning = false;
+
+    bool install = false;
+    bool requiresReplacement = false;
+    InfinityModTool.Data.CharacterModLink installContext;
+
+    string warningMessage = null;
 
     protected override void OnParametersSet()
     {
         if (string.IsNullOrEmpty(modService.Settings.SteamInstallationPath))
         {
-            WarningMessage = "Steam installation path has not been set, please set this via the settings tab";
+            warningMessage = "Steam installation path has not been set, please set this via the settings tab";
             return;
         }
     }
 
     void ShowConfirmationModal()
     {
-        ShowConfirmation = true;
+        showConfirmation = true;
     }
 
     void SelectCharacterMod(string idName)
     {
         if (string.IsNullOrEmpty(modService.Settings.SteamInstallationPath))
         {
-            WarningMessage = "Steam installation path has not been set, please set this in 'Settings'";
-            ShowWarning = true;
+            warningMessage = "Steam installation path has not been set, please set this in 'Settings'";
             return;
         }
 
         var modData = modService.GetCharacterData(idName);
-        Install = !modService.IsModInstalled(idName);
+        install = !modService.IsModInstalled(idName);
+        installContext = new Data.CharacterModLink() { CharacterID = idName, ReplacementCharacterID = null };
+        requiresReplacement = modData.ReplaceCharacter;
 
-        if (modData.ReplaceCharacter)
-        {
-            throw new NotImplementedException();
-        }
+        if (requiresReplacement && install)
+            showReplaceConfirmation = true;
         else
-        {
-            InstallContext = new Data.CharacterModLink() { CharacterID = idName, ReplacementCharacterID = null };
-            ShowConfirmation = true;
-        }
+            showConfirmation = true;
     }
 
-    async Task InstallUninstall(InfinityModTool.Data.CharacterModLink modification)
+    async Task InstallUninstall(string selectedCharacterID, InfinityModTool.Data.CharacterModLink modification)
     {
-        this.ShowConfirmation = false;
+        modification.ReplacementCharacterID = selectedCharacterID;
+        await InstallUninstall(true, modification);
+    }
 
-        if (Install)
+    async Task InstallUninstall(bool confirm, InfinityModTool.Data.CharacterModLink modification)
+    {
+        this.showConfirmation = false;
+        this.showReplaceConfirmation = false;
+
+        // User has cancelled operation
+        if (!confirm)
+            return;
+
+        showLoadingIcon = true;
+
+        if (install)
         {
             await modService.InstallCharacterMod(modification.CharacterID, modification.ReplacementCharacterID);
         }
@@ -70,5 +101,12 @@
         {
             await modService.UninstallCharacterMod(modification.CharacterID);
         }
+
+        showLoadingIcon = false;
+    }
+
+    string GetInstallMessage()
+    {
+        return install ? "Install Mod?" : "Uninstall Mod?";
     }
 }

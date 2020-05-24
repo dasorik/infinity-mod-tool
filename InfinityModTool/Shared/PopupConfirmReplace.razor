@@ -1,0 +1,80 @@
+﻿<div>
+    <div class="popup-container">
+        <div class="popup-dialog wide">
+            @if (ShowIcon)
+            {
+                <div class="popup-icon">
+                    <img src="img/@GetAlertIcon()" />
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(Title))
+            {
+                <div class="popup-title">
+                    @Title
+                </div>
+            }
+            <div class="popup-message">
+                @Message
+            </div>
+
+            <div class="replacement-select">
+                <select @onchange="SelectValue" class="form-control">
+                    <option value="">- Please select a value -</option>
+                    @foreach (var option in Options)
+                    {
+                        <option value="@option.Value">@option.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="popup-buttons">
+                <button type="button" class="btn btn-warning" @onclick="Cancel">@CancelText</button>
+                <button type="button" class="btn btn-primary" disabled="@(!confirmEnabled)" @onclick="Confirmation">@ConfirmText</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = null;
+    [Parameter] public string Message { get; set; } = "[Insert Confirmation Message]";
+    [Parameter] public string ConfirmText { get; set; } = "Yes";
+    [Parameter] public string CancelText { get; set; } = "No";
+    [Parameter] public bool ShowIcon { get; set; } = true;
+    [Parameter] public AlertLevel Type { get; set; }
+    [Parameter] public InfinityModTool.Data.ListOption[] Options { get; set; }
+    [Parameter] public EventCallback<string> ConfirmedPressed { get; set; }
+    [Parameter] public EventCallback CancelPressed { get; set; }
+
+    bool confirmEnabled { get; set; } = false;
+    string selectedValue { get; set; } = string.Empty;
+
+    public async Task Confirmation()
+    {
+        await ConfirmedPressed.InvokeAsync(selectedValue);
+    }
+
+    public async Task Cancel()
+    {
+        await CancelPressed.InvokeAsync(null);
+    }
+
+    public void SelectValue(ChangeEventArgs e)
+    {
+        selectedValue = e.Value.ToString();
+        confirmEnabled = !string.IsNullOrEmpty(selectedValue);
+    }
+
+    private string GetAlertIcon()
+    {
+        switch (Type)
+        {
+            case AlertLevel.Info:
+                return "alert-info.svg";
+            case AlertLevel.Warning:
+                return "alert-warning.svg";
+            default:
+                return "alert-info.svg";
+        }
+    }
+}
