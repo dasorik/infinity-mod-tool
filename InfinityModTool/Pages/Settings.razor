@@ -10,20 +10,62 @@
         <label for="setting-steampath">Steam Installation Path</label>
         <div class="settings-options">
             <input type="text" id="setting-steampath" class="form-control" @bind="@SteamInstallationPath" />
+
+            @if (steamPathValidation.IsError)
+            {
+                <span class="validation-error">* @steamPathValidation.Message</span>
+            }
         </div>
     </div>
 </div>
 
 <hr />
 
-<button @onclick="@SaveSettings" class="btn btn-primary">Save</button>
+<button @onclick="@SaveSettings" disabled="@(!saveEnabled)" class="btn btn-primary">Save</button>
 
 @code {
-    string SteamInstallationPath { get; set; }
+    private bool saveEnabled = true;
+
+    private Data.ValidationResponse steamPathValidation;
+
+    private string steamInstallationPath;
+    string SteamInstallationPath
+    {
+        get => steamInstallationPath;
+        set
+        {
+            steamInstallationPath = value;
+            ValidateSettings();
+        }
+    }
 
     protected override void OnInitialized()
     {
         SteamInstallationPath = modService.Settings.SteamInstallationPath;
+        ValidateSettings();
+    }
+
+    void ValidateSettings()
+    {
+        steamPathValidation = ValidateSteamInstallationPath();
+        var enableSave = !steamPathValidation.IsError;
+
+        saveEnabled = enableSave;
+    }
+
+    Data.ValidationResponse ValidateSteamInstallationPath()
+    {
+        if (string.IsNullOrEmpty(steamInstallationPath))
+            return new Data.ValidationResponse(Data.ValidationSeverity.None);
+
+        if (!System.IO.Directory.Exists(steamInstallationPath))
+            return new Data.ValidationResponse(Data.ValidationSeverity.Error, "The provided path is not a valid Disney Infinity 3.0 installation folder");
+
+        if (!System.IO.File.Exists(System.IO.Path.Combine(steamInstallationPath, "DisneyInfinity3.exe"))
+            || !System.IO.Directory.Exists(System.IO.Path.Combine(steamInstallationPath, "assets", "presentation")))
+            return new Data.ValidationResponse(Data.ValidationSeverity.Error, "The provided path is not a valid Disney Infinity 3.0 installation folder");
+
+        return new Data.ValidationResponse(Data.ValidationSeverity.None);
     }
 
     void SaveSettings()

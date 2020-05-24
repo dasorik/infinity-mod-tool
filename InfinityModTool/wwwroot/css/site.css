@@ -224,6 +224,7 @@ app {
 .settings-row > .settings-options {
     display: table-cell;
     margin-left: 20px;
+    width: 500px;
 }
 
 .vertical-align-helper {
@@ -415,4 +416,13 @@ img .vertical-align {
 .replacement-select {
     margin-top: 10px;
     margin-bottom: 10px;
+}
+
+span.validation-error {
+    color: #ff0033;
+    display: inline-block;
+}
+
+span.validation-error.inline {
+    display: inline;
 }
