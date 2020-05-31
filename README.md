@@ -26,7 +26,7 @@ The `config.json` file should have the following
   "ModCategory": "Character", // Available types ['Character']
   "ReplaceCharacter": false, // (Character specific) Set to true if this character mod needs to replace a character in the 'locks__lua.chd' file
   "WriteToCharacterList": true, // (Character specific) Set to true if this character's json data needs to be written to 'virtualreaderpc_data.lua'
-  "DisplayName": "CLU", // This is the name as shown on the installation button
+  "DisplayName": "Example Character", // This is the name as shown on the installation button
   "DisplayColor": "purple", // This affects the frames of the character portrait, ie. "red"/"purple"
   "DisplayImage": "portrait.png" // This will be displayed as the portrait image on the installation button, relative to root mod path
 }
