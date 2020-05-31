@@ -10,11 +10,13 @@ namespace InfinityModTool.Services
 	public class ModService
 	{
 		const string USER_SETTINGS = "UserSettings";
+		const double CurrentVersion = 1.0;
 
 		public ListOption[] IDNames { get; private set; }
 
 		public UserModData Settings = new UserModData();
-		public CharacterData[] AvailableCharacterMods = new CharacterData[0];
+		public BaseModConfiguration[] AvailableMods = new BaseModConfiguration[0];
+		public IEnumerable<CharacterModConfiguration> AvailableCharacterMods => AvailableMods.Where(m => m is CharacterModConfiguration).Cast<CharacterModConfiguration>();
 
 		public ModService()
 		{
@@ -24,12 +26,12 @@ namespace InfinityModTool.Services
 				Settings.InstalledCharacterMods = new List<CharacterModLink>();
 
 			this.IDNames = ModLoaderService.GetIDNameListOptions();
-			this.AvailableCharacterMods = ModLoaderService.GetAvailableCharacterMods();
+			this.AvailableMods = ModLoaderService.LoadMods(CurrentVersion);
 		}
 
-		public bool IsModInstalled(string idName)
+		public bool IsModInstalled(string modID)
 		{
-			return Settings.InstalledCharacterMods.Any(m => m.CharacterID == idName);
+			return Settings.InstalledCharacterMods.Any(m => m.ModID == modID);
 		}
 
 		public ListOption[] GetAvailableReplacementCharacters(string idName)
@@ -40,14 +42,14 @@ namespace InfinityModTool.Services
 			return potentialNamePool.ToArray();
 		}
 
-		public CharacterData GetCharacterData(string idName)
+		public CharacterModConfiguration GetCharacterMod(string modID)
 		{
-			return AvailableCharacterMods.FirstOrDefault(m => m.Name == idName);
+			return AvailableCharacterMods.FirstOrDefault(m => m.ModID == modID);
 		}
 
-		public async Task InstallCharacterMod(string idName, string replacementIDName)
+		public async Task InstallCharacterMod(string modID, string replacementIDName)
 		{
-			var modToAdd = new CharacterModLink() { CharacterID = idName, ReplacementCharacterID = replacementIDName };
+			var modToAdd = new CharacterModLink() { ModID = modID, ReplacementCharacterID = replacementIDName };
 			Settings.InstalledCharacterMods.Add(modToAdd);
 
 			await UpdateModConfiguration();
@@ -56,7 +58,7 @@ namespace InfinityModTool.Services
 
 		public async Task UninstallCharacterMod(string idName)
 		{
-			var modToRemove = Settings.InstalledCharacterMods.FirstOrDefault(m => m.CharacterID == idName);
+			var modToRemove = Settings.InstalledCharacterMods.FirstOrDefault(m => m.ModID == idName);
 			Settings.InstalledCharacterMods.Remove(modToRemove);
 
 			await UpdateModConfiguration();
@@ -75,7 +77,7 @@ namespace InfinityModTool.Services
 
 			var configuration = new Configuration() { SteamInstallationPath = Settings.SteamInstallationPath };
 			var characterModifications = Settings.InstalledCharacterMods.Select(i => new CharacterModification() { 
-				Data = AvailableCharacterMods.First(c => c.Name == i.CharacterID),
+				Config = AvailableCharacterMods.First(c => c.ModID == i.ModID),
 				ReplacementCharacter = i.ReplacementCharacterID
 			}).ToArray();
 

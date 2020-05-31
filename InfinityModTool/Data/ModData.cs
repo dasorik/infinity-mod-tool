@@ -7,7 +7,7 @@ namespace InfinityModTool.Data
 {
 	public class CharacterModLink
 	{
-		public string CharacterID;
+		public string ModID;
 		public string ReplacementCharacterID;
 	}
 

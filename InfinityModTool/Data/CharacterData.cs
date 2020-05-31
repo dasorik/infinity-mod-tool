@@ -18,16 +18,11 @@ namespace InfinityModTool.Data
         public string ProgressionTree;
         public string CostumeCoin;
         public string MetaData;
-        public bool ReplaceCharacter;
-        public bool WriteToCharacterList;
-        public string DisplayImage;
-        public string DisplayColor;
-        public string DisplayName;
     }
 
     public class CharacterModification
     {
-        public CharacterData Data;
+        public CharacterModConfiguration Config;
         public string ReplacementCharacter;
     }
 }

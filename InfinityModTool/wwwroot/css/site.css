@@ -433,3 +433,7 @@ span.validation-error {
 span.validation-error.inline {
     display: inline;
 }
+
+h1.missing {
+    color: lightgrey;
+}

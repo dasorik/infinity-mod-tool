@@ -41,7 +41,7 @@ namespace InfinityModTool.Utilities
 				foreach (var character in data.Where(c => !string.IsNullOrEmpty(c.ReplacementCharacter)))
 				{
 					var offset = FindReplacementOffset(igpLocksFile, character.ReplacementCharacter);
-					FileWriterUtility.WriteToFile(igpLocksFile, character.Data.Name, offset, false, out bytesWritten);
+					FileWriterUtility.WriteToFile(igpLocksFile, character.Config.PresentationData.Name, offset, false, out bytesWritten);
 				}
 			}
 			catch (Exception ex)
@@ -103,12 +103,12 @@ namespace InfinityModTool.Utilities
 
 		private static string GenerateCharacterJson(CharacterModification[] data)
 		{
-			var presentationDataToWrite = data.Where(d => d.Data.WriteToCharacterList);
+			var presentationDataToWrite = data.Where(d => d.Config.WriteToCharacterList);
 			var jsonWriter = new StringBuilder();
 
 			foreach (var character in presentationDataToWrite)
 			{
-				var characterJson = GenerateCharacterJson(character.Data);
+				var characterJson = GenerateCharacterJson(character.Config.PresentationData);
 				jsonWriter.Append(characterJson);
 			}
 
