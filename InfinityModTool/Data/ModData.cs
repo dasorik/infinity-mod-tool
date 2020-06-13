@@ -5,15 +5,16 @@ using System.Threading.Tasks;
 
 namespace InfinityModTool.Data
 {
-	public class CharacterModLink
+	public class ModInstallationData
 	{
 		public string ModID;
-		public string ReplacementCharacterID;
+		public string ModCategory;
+		public Dictionary<string, string> Parameters = new Dictionary<string, string>();
 	}
 
 	public class UserModData
 	{
 		public string SteamInstallationPath;
-		public List<CharacterModLink> InstalledCharacterMods = new List<CharacterModLink>();
+		public List<ModInstallationData> InstalledMods = new List<ModInstallationData>();
 	}
 }

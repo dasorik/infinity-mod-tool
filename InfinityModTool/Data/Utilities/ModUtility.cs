@@ -8,25 +8,26 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using InfinityModTool.Data.Modifications;
 
 namespace InfinityModTool.Utilities
 {
 	public class ModUtility
 	{
-		public static async Task ApplyChanges(Configuration configuration, CharacterModification[] data)
+		public static async Task ApplyChanges(Configuration configuration, GameModification[] mods)
 		{
 			var tempFolder = FileWriterUtility.CreateTempFolder();
 
 			// Start with a blank canvas
 			RemoveAllChanges(configuration);
 
-			if (data.Length == 0)
+			if (mods.Length == 0)
 				return;
 
 			try
 			{
 				await ExtractFiles(configuration, tempFolder);
-				var json = GenerateCharacterJson(data);
+				var json = GenerateCharacterJson(mods);
 				
 				var virtualreaderFile = Path.Combine(tempFolder, "presentation", "virtualreaderpc_data.lua");
 				var virtualreaderDecompiledFile = Path.Combine(tempFolder, "virtualreaderpc_data_decomp.lua");
@@ -38,15 +39,17 @@ namespace InfinityModTool.Utilities
 				int bytesWritten = 0;
 				FileWriterUtility.WriteToFile(virtualreaderDecompiledFile, json, 0x0000A5C6, true, out bytesWritten);
 
-				foreach (var character in data.Where(c => !string.IsNullOrEmpty(c.ReplacementCharacter)))
+				foreach (var mod in mods.Where(m => ModRequiresReplacement(m)))
 				{
-					var offset = FindReplacementOffset(igpLocksFile, character.ReplacementCharacter);
-					FileWriterUtility.WriteToFile(igpLocksFile, character.Config.PresentationData.Name, offset, false, out bytesWritten);
+					var offset = FindReplacementOffset(igpLocksFile, mod.Parameters["ReplacementCharacter"]);
+					FileWriterUtility.WriteToFile(igpLocksFile, mod.GetConfig<CharacterModConfiguration>().PresentationData.Name, offset, false, out bytesWritten);
 				}
 			}
 			catch (Exception ex)
 			{
 				Directory.Delete(tempFolder, true);
+				RemoveAllChanges(configuration);
+
 				return;
 			}
 
@@ -101,14 +104,15 @@ namespace InfinityModTool.Utilities
 			DeleteFromFolder(flashFolder, ".gfx");
 		}
 
-		private static string GenerateCharacterJson(CharacterModification[] data)
+		private static string GenerateCharacterJson(GameModification[] mods)
 		{
-			var presentationDataToWrite = data.Where(d => d.Config.WriteToCharacterList);
+			var characterMods = mods.Where(m => m.Config.ModCategory == "Character");
+			var presentationDataToWrite = characterMods.Where(m => (m.Config as CharacterModConfiguration).WriteToCharacterList);
 			var jsonWriter = new StringBuilder();
 
 			foreach (var character in presentationDataToWrite)
 			{
-				var characterJson = GenerateCharacterJson(character.Config.PresentationData);
+				var characterJson = GenerateCharacterJson(character.GetConfig<CharacterModConfiguration>().PresentationData);
 				jsonWriter.Append(characterJson);
 			}
 
@@ -211,6 +215,12 @@ namespace InfinityModTool.Utilities
 				if (extensionsToDelete.Any(e => file.EndsWith(e)))
 					File.Delete(file);
 			}
+		}
+
+		private static bool ModRequiresReplacement(GameModification modification)
+		{
+			return (modification.Config.ModCategory ?? string.Empty).Equals("Character", StringComparison.InvariantCultureIgnoreCase)
+				&& !string.IsNullOrEmpty(modification.Parameters.GetValueOrDefault("ReplacementCharacter", null));
 		}
 	}
 }

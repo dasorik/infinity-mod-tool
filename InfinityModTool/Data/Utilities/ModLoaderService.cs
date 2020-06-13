@@ -122,12 +122,14 @@ namespace InfinityModTool.Data.Utilities
 			{
 				case "Character":
 					return LoadCharacterModData(configuration, extractPath);
+				case "CostumeCoin":
+					return LoadCostumeCoinModData(configuration, extractPath);
 				default:
 					return configuration;
 			}
 		}
 
-		static CharacterModConfiguration LoadCharacterModData(BaseModConfiguration configuration, string extractPath)
+		static BaseModConfiguration LoadCharacterModData(BaseModConfiguration configuration, string extractPath)
 		{
 			var configPath = Path.Combine(extractPath, "config.json");
 			var presentationPath = Path.Combine(extractPath, "presentation.json");
@@ -138,7 +140,15 @@ namespace InfinityModTool.Data.Utilities
 			modData.PresentationData = presentationData;
 			return modData;
 		}
-		
+
+		static CostumeCoinModConfiguration LoadCostumeCoinModData(BaseModConfiguration configuration, string extractPath)
+		{
+			var configPath = Path.Combine(extractPath, "config.json");
+			var modData = JsonMapper.ToObject<CostumeCoinModConfiguration>(File.ReadAllText(configPath));
+
+			return modData;
+		}
+
 		static void DeleteAndRecreateFolder(string path)
 		{
 			// Ensure that we delete this data if it's been left behind

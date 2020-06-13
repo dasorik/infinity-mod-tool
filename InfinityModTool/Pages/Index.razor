@@ -1,4 +1,6 @@
 ﻿@page "/"
+@page "/mods"
+@page "/mods/{category}"
 @inject InfinityModTool.Services.ModService modService;
 
 @if (showLoadingIcon)
@@ -26,17 +28,19 @@
     <BannerAlert Type="Warning" Message="@warningMessage"></BannerAlert>
 }
 
-@if (modService.AvailableCharacterMods.Count() == 0)
+@if (mods.Count() == 0)
 {
-    <h1 class="missing">No character mod packs could be found</h1>
+    <h1 class="missing">No mod packs could be found</h1>
 }
 
-@foreach (var mod in modService.AvailableCharacterMods)
+@foreach (var mod in mods)
 {
-    <CharacterButton IDName="@mod.ModID" DisplayName="@mod.DisplayName" DisplayImage="@mod.DisplayImageBase64" DisplayColor="@mod.DisplayColor" ReplacementMod="@mod.ReplaceCharacter" Installed="@modService.IsModInstalled(mod.ModID)" OnClick="@SelectCharacterMod"></CharacterButton>
+    <CharacterButton IDName="@mod.ModID" DisplayName="@mod.DisplayName" DisplayImage="@mod.DisplayImageBase64" DisplayColor="@mod.DisplayColor" Icon="@modService.GetModIcon(mod.ModID)" Installed="@modService.IsModInstalled(mod.ModID)" OnClick="@SelectMod"></CharacterButton>
 }
 
 @code {
+    [Parameter] public string category { get; set; }
+
     bool showLoadingIcon = false;
     bool showConfirmation = false;
     bool showReplaceConfirmation = false;
@@ -44,10 +48,12 @@
 
     bool install = false;
     bool requiresReplacement = false;
-    InfinityModTool.Data.CharacterModLink installContext;
+    InfinityModTool.Data.ModInstallationData installContext;
 
     string warningMessage = null;
     string alertMessage = null;
+
+    IEnumerable<InfinityModTool.Data.BaseModConfiguration> mods = new InfinityModTool.Data.BaseModConfiguration[] { };
 
     protected override void OnParametersSet()
     {
@@ -56,6 +62,8 @@
             warningMessage = "Steam installation path has not been set, please set this via the settings tab";
             return;
         }
+
+        mods = modService.GetModsForCategory(category);
     }
 
     void ShowConfirmationModal()
@@ -63,7 +71,7 @@
         showConfirmation = true;
     }
 
-    void SelectCharacterMod(string modID)
+    void SelectMod(string modID)
     {
         if (string.IsNullOrEmpty(modService.Settings.SteamInstallationPath))
         {
@@ -72,10 +80,19 @@
             return;
         }
 
-        var modData = modService.GetCharacterMod(modID);
+        var modData = modService.GetMod(modID);
         install = !modService.IsModInstalled(modID);
-        installContext = new Data.CharacterModLink() { ModID = modID, ReplacementCharacterID = null };
-        requiresReplacement = modData.ReplaceCharacter;
+        installContext = new Data.ModInstallationData() { ModID = modData.ModID, ModCategory = modData.ModCategory };
+
+        if (modData.ModCategory == "Character")
+            SelectCharacterMod(modData as Data.CharacterModConfiguration);
+        else
+            showConfirmation = true;
+    }
+
+    void SelectCharacterMod(Data.CharacterModConfiguration modData)
+    {
+        requiresReplacement = modData?.ReplaceCharacter ?? false;
 
         if (requiresReplacement && install)
             showReplaceConfirmation = true;
@@ -83,13 +100,13 @@
             showConfirmation = true;
     }
 
-    async Task InstallUninstall(string selectedCharacterID, InfinityModTool.Data.CharacterModLink modification)
+    async Task InstallUninstall(string selectedCharacterID, Data.ModInstallationData modification)
     {
-        modification.ReplacementCharacterID = selectedCharacterID;
+        modification.Parameters.Add("ReplacementCharacter", selectedCharacterID);
         await InstallUninstall(true, modification);
     }
 
-    async Task InstallUninstall(bool confirm, InfinityModTool.Data.CharacterModLink modification)
+    async Task InstallUninstall(bool confirm, Data.ModInstallationData modification)
     {
         this.showConfirmation = false;
         this.showReplaceConfirmation = false;
@@ -101,13 +118,9 @@
         showLoadingIcon = true;
 
         if (install)
-        {
-            await modService.InstallCharacterMod(modification.ModID, modification.ReplacementCharacterID);
-        }
+            await modService.InstallCharacterMod(modification);
         else
-        {
-            await modService.UninstallCharacterMod(modification.ModID);
-        }
+            await modService.UninstallMod(modification.ModID);
 
         showLoadingIcon = false;
     }

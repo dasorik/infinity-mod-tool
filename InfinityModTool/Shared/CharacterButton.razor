@@ -9,9 +9,12 @@
             <div class="button-footer">
                 <img src="img/button-bottom-@(DisplayColor ?? "blue").svg" />
             </div>
-            <div class="replacement-indicator">
-                <img src="img/mod-@(ReplacementMod ? "" : "no")replace.svg" />
-            </div>
+            @if (!string.IsNullOrEmpty(Icon))
+            {
+                <div class="replacement-indicator">
+                    <img src="img/@Icon" />
+                </div>
+            }
         </div>
 
         <div class="button-title-banner">
@@ -29,7 +32,7 @@
     [Parameter] public string DisplayImage { get; set; }
     [Parameter] public string DisplayColor { get; set; }
     [Parameter] public string IDName { get; set; }
-    [Parameter] public bool ReplacementMod { get; set; }
+    [Parameter] public string Icon { get; set; }
     [Parameter] public bool Installed { get; set; }
     [Parameter] public EventCallback<string> OnClick { get; set; }
 

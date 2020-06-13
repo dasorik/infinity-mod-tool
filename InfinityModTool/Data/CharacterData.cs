@@ -19,10 +19,4 @@ namespace InfinityModTool.Data
         public string CostumeCoin;
         public string MetaData;
     }
-
-    public class CharacterModification
-    {
-        public CharacterModConfiguration Config;
-        public string ReplacementCharacter;
-    }
 }

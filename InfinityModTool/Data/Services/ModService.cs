@@ -1,4 +1,5 @@
 using InfinityModTool.Data;
+using InfinityModTool.Data.Modifications;
 using InfinityModTool.Data.Utilities;
 using InfinityModTool.Utilities;
 using System.Collections.Generic;
@@ -16,50 +17,81 @@ namespace InfinityModTool.Services
 
 		public UserModData Settings = new UserModData();
 		public BaseModConfiguration[] AvailableMods = new BaseModConfiguration[0];
-		public IEnumerable<CharacterModConfiguration> AvailableCharacterMods => AvailableMods.Where(m => m is CharacterModConfiguration).Cast<CharacterModConfiguration>();
 
 		public ModService()
 		{
 			this.Settings = SettingsUtility.LoadSettings<UserModData>(USER_SETTINGS);
 
-			if (Settings.InstalledCharacterMods == null)
-				Settings.InstalledCharacterMods = new List<CharacterModLink>();
+			if (Settings.InstalledMods == null)
+				Settings.InstalledMods = new List<ModInstallationData>();
 
 			this.IDNames = ModLoaderService.GetIDNameListOptions();
 			this.AvailableMods = ModLoaderService.LoadMods(CurrentVersion);
 		}
 
+		public IEnumerable<T> GetInstalledMods<T>()
+			where T : ModInstallationData
+		{
+			return Settings.InstalledMods.Where(i => i is T).Cast<T>();
+		}
+
 		public bool IsModInstalled(string modID)
 		{
-			return Settings.InstalledCharacterMods.Any(m => m.ModID == modID);
+			return Settings.InstalledMods.Any(m => m.ModID == modID);
+		}
+
+		public string GetModIcon(string modID)
+		{
+			var modData = GetMod(modID);
+
+			switch (modData.ModCategory)
+			{
+				case "Character":
+					return (modData as CharacterModConfiguration).ReplaceCharacter ? "mod-replace.svg" : "mod-noreplace.svg";
+				default:
+					return null;
+			}
 		}
 
 		public ListOption[] GetAvailableReplacementCharacters(string idName)
 		{
-			var takenNames = Settings.InstalledCharacterMods.Select(i => i.ReplacementCharacterID);
+			var takenNames = Settings.InstalledMods.Where(i => i.ModCategory == "Character").Select(i => i.Parameters["ReplacementCharacter"]);
 			var potentialNamePool = IDNames.Where(n => n.Value.Length == idName.Length && !takenNames.Contains(n.Value));
 			
 			return potentialNamePool.ToArray();
 		}
 
-		public CharacterModConfiguration GetCharacterMod(string modID)
+		public IEnumerable<BaseModConfiguration> GetModsForCategory(string category)
 		{
-			return AvailableCharacterMods.FirstOrDefault(m => m.ModID == modID);
+			if (category == null)
+				return AvailableMods;
+			else
+				return AvailableMods.Where(m => (m.ModCategory ?? string.Empty).Equals(category, System.StringComparison.InvariantCultureIgnoreCase));
 		}
 
-		public async Task InstallCharacterMod(string modID, string replacementIDName)
+		public BaseModConfiguration GetMod(string modID)
 		{
-			var modToAdd = new CharacterModLink() { ModID = modID, ReplacementCharacterID = replacementIDName };
-			Settings.InstalledCharacterMods.Add(modToAdd);
+			return AvailableMods.FirstOrDefault(m => m.ModID == modID);
+		}
+
+		public T GetMod<T>(string modID)
+			where T : BaseModConfiguration
+		{
+			return AvailableMods.FirstOrDefault(m => m.ModID == modID && m is T) as T;
+		}
+
+		public async Task InstallCharacterMod(ModInstallationData modData)
+		{
+			Settings.InstalledMods.Add(modData);
 
 			await UpdateModConfiguration();
 			SaveSettings();
 		}
 
-		public async Task UninstallCharacterMod(string idName)
+		public async Task UninstallMod(string idName)
 		{
-			var modToRemove = Settings.InstalledCharacterMods.FirstOrDefault(m => m.ModID == idName);
-			Settings.InstalledCharacterMods.Remove(modToRemove);
+			var modToRemove = Settings.InstalledMods.FirstOrDefault(m => m.ModID == idName);
+			Settings.InstalledMods.Remove(modToRemove);
 
 			await UpdateModConfiguration();
 			SaveSettings();
@@ -76,12 +108,13 @@ namespace InfinityModTool.Services
 				throw new System.Exception("Cannot apply mods if the steam installation path has not been set");
 
 			var configuration = new Configuration() { SteamInstallationPath = Settings.SteamInstallationPath };
-			var characterModifications = Settings.InstalledCharacterMods.Select(i => new CharacterModification() { 
-				Config = AvailableCharacterMods.First(c => c.ModID == i.ModID),
-				ReplacementCharacter = i.ReplacementCharacterID
+
+			var mods = Settings.InstalledMods.Select(i => new GameModification() { 
+				Config = GetMod(i.ModID),
+				Parameters = i.Parameters
 			}).ToArray();
 
-			await ModUtility.ApplyChanges(configuration, characterModifications);
+			await ModUtility.ApplyChanges(configuration, mods);
 		}
 
 		private bool CheckSteamPathSettings()
