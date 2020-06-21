@@ -8,7 +8,8 @@ namespace InfinityModTool.Data
 	public class CostumeCoinModConfiguration : BaseModConfiguration
 	{
 		public string TargetCharacterID;
-		public string CostumeCoinName;
 		public bool WriteToCharacterList;
+		public bool WriteToCostumeCoinList;
+		public CostumeCoinData PresentationData;
 	}
 }

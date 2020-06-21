@@ -9,12 +9,37 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using InfinityModTool.Data.Modifications;
+using InfinityModTool.Extension;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
+using System.Data.Common;
 
 namespace InfinityModTool.Utilities
 {
 	public class ModUtility
 	{
-		public static async Task ApplyChanges(Configuration configuration, GameModification[] mods)
+		public class InstallInfo
+		{
+			public readonly InstallationStatus status;
+			public readonly string[] conflicts;
+
+			public InstallInfo(InstallationStatus status)
+				: this(status, new string[0]) { }
+
+			public InstallInfo(InstallationStatus status, string[] conflicts)
+			{
+				this.status = status;
+				this.conflicts = conflicts;
+			}
+		}
+
+		public enum InstallationStatus
+		{
+			Success,
+			Conflict,
+			Error
+		}
+
+		public static async Task<InstallInfo> ApplyChanges(Configuration configuration, GameModification[] mods)
 		{
 			var tempFolder = FileWriterUtility.CreateTempFolder();
 
@@ -22,12 +47,11 @@ namespace InfinityModTool.Utilities
 			RemoveAllChanges(configuration);
 
 			if (mods.Length == 0)
-				return;
+				return new InstallInfo(InstallationStatus.Success);
 
 			try
 			{
 				await ExtractFiles(configuration, tempFolder);
-				var json = GenerateCharacterJson(mods);
 				
 				var virtualreaderFile = Path.Combine(tempFolder, "presentation", "virtualreaderpc_data.lua");
 				var virtualreaderDecompiledFile = Path.Combine(tempFolder, "virtualreaderpc_data_decomp.lua");
@@ -35,14 +59,42 @@ namespace InfinityModTool.Utilities
 
 				await UnluacUtility.Decompile(virtualreaderFile, virtualreaderDecompiledFile);
 				
-				// Write any data as required to the virtualreader file, make sure to offset by bytesWritten if needed
-				int bytesWritten = 0;
-				FileWriterUtility.WriteToFile(virtualreaderDecompiledFile, json, 0x0000A5C6, true, out bytesWritten);
+				// Get mod types
+				var characterMods = mods.Where(m => m.Config.ModCategory.SafeEquals("Character"));
+				var costumeCoinMods = mods.Where(m => m.Config.ModCategory.SafeEquals("CostumeCoin"));
 
-				foreach (var mod in mods.Where(m => ModRequiresReplacement(m)))
+				var characterJson = GenerateCharacterJson(characterMods.Select(m => m.GetConfig<CharacterModConfiguration>()).ToArray());
+				var costumeCoinJson = GenerateCostumeCoinJson(costumeCoinMods.Select(m => m.GetConfig<CostumeCoinModConfiguration>()).ToArray());
+
+				// Write any data as required to the virtualreader file, make sure to offset by bytesWritten if needed
+				var fileWrites = new Dictionary<string, List<FileWrite>>();
+
+				FileWriterUtility.WriteToFile(virtualreaderDecompiledFile, characterJson, 0x0000A5C6, true, fileWrites, false);
+				FileWriterUtility.WriteToFile(virtualreaderDecompiledFile, costumeCoinJson, 0x0001588F + 1, true, fileWrites, false);
+
+				// Apply character specific actions
+				foreach (var mod in characterMods)
 				{
-					var offset = FindReplacementOffset(igpLocksFile, mod.Parameters["ReplacementCharacter"]);
-					FileWriterUtility.WriteToFile(igpLocksFile, mod.GetConfig<CharacterModConfiguration>().PresentationData.Name, offset, false, out bytesWritten);
+					if (ModRequiresReplacement(mod))
+					{
+						var offset = FindReplacementOffset(igpLocksFile, mod.Parameters["ReplacementCharacter"]);
+						FileWriterUtility.WriteToFile(igpLocksFile, mod.GetConfig<CharacterModConfiguration>().PresentationData.Name, offset, false, fileWrites, true);
+					}
+				}
+
+				// Apply costume coin specific actions
+				foreach (var mod in costumeCoinMods)
+				{
+					var config = mod.GetConfig<CostumeCoinModConfiguration>();
+
+					if (config.WriteToCharacterList)
+					{
+						long startIndex, endIndex;
+						var characterData = GetCharacterDataFromFile(virtualreaderDecompiledFile, config.TargetCharacterID, out startIndex, out endIndex);
+						characterData.CostumeCoin = config.PresentationData.Name;
+
+						FileWriterUtility.WriteToFileRange(virtualreaderDecompiledFile, GenerateCharacterJson(characterData), startIndex, endIndex, fileWrites, true);
+					}
 				}
 			}
 			catch (Exception ex)
@@ -50,11 +102,13 @@ namespace InfinityModTool.Utilities
 				Directory.Delete(tempFolder, true);
 				RemoveAllChanges(configuration);
 
-				return;
+				return new InstallInfo(InstallationStatus.Error);
 			}
 
 			CopyFiles(configuration, tempFolder);
 			Directory.Delete(tempFolder, true);
+
+			return new InstallInfo(InstallationStatus.Success);
 		}
 
 		private static async Task ExtractFiles(Configuration configuration, string tempFolder)
@@ -104,26 +158,42 @@ namespace InfinityModTool.Utilities
 			DeleteFromFolder(flashFolder, ".gfx");
 		}
 
-		private static string GenerateCharacterJson(GameModification[] mods)
+		private static string GenerateCharacterJson(CharacterModConfiguration[] mods)
 		{
-			var characterMods = mods.Where(m => m.Config.ModCategory == "Character");
-			var presentationDataToWrite = characterMods.Where(m => (m.Config as CharacterModConfiguration).WriteToCharacterList);
+			var presentationDataToWrite = mods.Where(m => m.WriteToCharacterList);
 			var jsonWriter = new StringBuilder();
 
 			foreach (var character in presentationDataToWrite)
 			{
-				var characterJson = GenerateCharacterJson(character.GetConfig<CharacterModConfiguration>().PresentationData);
+				var characterJson = GenerateCharacterJson(character.PresentationData, prependComma: true);
 				jsonWriter.Append(characterJson);
 			}
 
 			return jsonWriter.ToString();
 		}
 
-		private static string GenerateCharacterJson(CharacterData data)
+		private static string GenerateCostumeCoinJson(CostumeCoinModConfiguration[] mods)
+		{
+			var presentationDataToWrite = mods.Where(m => m.WriteToCostumeCoinList);
+			var jsonWriter = new StringBuilder();
+
+			foreach (var costumeCoin in presentationDataToWrite)
+			{
+				var characterJson = GenerateCostumeCoinJson(costumeCoin.PresentationData, prependComma: true);
+				jsonWriter.Append(characterJson);
+			}
+
+			return jsonWriter.ToString();
+		}
+
+		private static string GenerateCharacterJson(CharacterData data, bool prependComma = false)
 		{
 			var sb = new StringBuilder();
 
-			sb.Append(",\r\n  {");
+			if (prependComma)
+				sb.Append(",\r\n  ");
+
+			sb.Append("{");
 			sb.Append($"\r\n    Name = \"{data.Name}\",");
 			sb.Append($"\r\n    sku_id = \"{data.Sku_Id}\",");
 			sb.Append($"\r\n    SteamDLCAppId = \"{data.SteamDLCAppId}\",");
@@ -140,22 +210,92 @@ namespace InfinityModTool.Utilities
 			return sb.ToString();
 		}
 
-		private static int FindReplacementOffset(string lockFile, string replacementName)
+		private static string GenerateCostumeCoinJson(CostumeCoinData data, bool prependComma = false)
+		{
+			var sb = new StringBuilder();
+
+			if (prependComma)
+				sb.Append(",\r\n  ");
+
+			sb.Append("{");
+			sb.Append($"\r\n    sku_id = \"{data.Sku_Id}\",");
+			sb.Append($"\r\n    Name = \"{data.Name}\",");
+			sb.Append($"\r\n    CoinType = \"{data.CoinType}\",");
+			sb.Append($"\r\n    SparkCost = \"{data.SparkCost}\",");
+			sb.Append($"\r\n    MetaData = \"{data.MetaData}\"");
+			sb.Append("\r\n  }");
+
+			return sb.ToString();
+		}
+
+		private static CharacterData GetCharacterDataFromFile(string filePath, string targetID, out long startOffset, out long endOffset)
+		{
+			string dataPattern = @"^{.+}$";
+			string propertyPattern = @"\s{4}([a-zA-Z_]+) = \""(.*)\""";
+
+			byte[] startSignature = new byte[] { 123, 13, 10 }; // {..
+			byte[] endSignature = new byte[] { 13, 10, 32, 32, 125 }; // ..}
+
+			startOffset = FindReplacementOffset(filePath, $"    Name = \"{targetID}\"") - startSignature.Length;
+			endOffset = FindReplacementOffset(filePath, endSignature, startOffset) + endSignature.Length;
+
+			var fileBytes = File.ReadAllBytes(filePath);
+			byte[] truncatedByteBuffer = new byte[endOffset - startOffset];
+			Array.Copy(fileBytes, startOffset, truncatedByteBuffer, 0, endOffset - startOffset);
+
+			var truncatedText = Encoding.ASCII.GetString(truncatedByteBuffer);
+
+			if (Regex.IsMatch(truncatedText, dataPattern, RegexOptions.Singleline))
+			{
+				var matches = Regex.Matches(truncatedText, propertyPattern);
+				var properties = new Dictionary<string, string>();
+
+				foreach (Match match in matches)
+				{
+					var groups = match.Groups;
+					properties.Add(groups[1].Value, groups[2].Value);
+				}
+
+				var characterData = new CharacterData();
+				characterData.Name = properties["Name"];
+				characterData.Sku_Id = properties["sku_id"];
+				characterData.SteamDLCAppId = properties["SteamDLCAppId"];
+				characterData.PCSKU = properties["PCSKU"];
+				characterData.WINRTSKU = properties["WINRTSKU"];
+				characterData.Icon = properties["Icon"];
+				characterData.Description = properties["Description"];
+				characterData.VideoLink = properties["VideoLink"];
+				characterData.ProgressionTree = properties["ProgressionTree"];
+				characterData.CostumeCoin = properties["CostumeCoin"];
+				characterData.MetaData = properties["MetaData"];
+
+				return characterData;
+			}
+
+			return null;
+		}
+
+		private static long FindReplacementOffset(string lockFile, string replacementName, long? startFromIndex = null)
+		{
+			var replacementNameBytes = Encoding.UTF8.GetBytes(replacementName);
+			return FindReplacementOffset(lockFile, replacementNameBytes, startFromIndex);
+		}
+
+		private static long FindReplacementOffset(string lockFile, byte[] searchBytes, long? startFromIndex = null)
 		{
 			var fileBytes = File.ReadAllBytes(lockFile);
-			var replacementNameBytes = Encoding.UTF8.GetBytes(replacementName);
 
-			int subSearchLength = replacementNameBytes.Length;
+			int subSearchLength = searchBytes.Length;
 			bool match = false;
-			int i, j;
+			long i, j;
 
-			for (i = 0; i < fileBytes.Length; i++)
+			for (i = startFromIndex ?? 0; i < fileBytes.LongLength; i++)
 			{
 				match = true;
 
 				for (j = 0; j < subSearchLength; j++)
 				{
-					if (fileBytes[i + j] != replacementNameBytes[j])
+					if (fileBytes[i + j] != searchBytes[j])
 					{
 						match = false;
 						break;
@@ -166,7 +306,7 @@ namespace InfinityModTool.Utilities
 					return i;
 			}
 
-			throw new System.Exception($"Unable to find the string '{replacementName}' within the requested file");
+			throw new System.Exception($"Unable to find the string '{Encoding.UTF8.GetString(searchBytes)}' within the requested file");
 		}
 
 		private static void CopyFiles(Configuration configuration, string tempFolder)
@@ -219,8 +359,8 @@ namespace InfinityModTool.Utilities
 
 		private static bool ModRequiresReplacement(GameModification modification)
 		{
-			return (modification.Config.ModCategory ?? string.Empty).Equals("Character", StringComparison.InvariantCultureIgnoreCase)
-				&& !string.IsNullOrEmpty(modification.Parameters.GetValueOrDefault("ReplacementCharacter", null));
+			return !string.IsNullOrEmpty(modification.Parameters.GetValueOrDefault("ReplacementCharacter", null));
 		}
+
 	}
 }

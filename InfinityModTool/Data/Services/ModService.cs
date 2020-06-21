@@ -1,3 +1,4 @@
+using ElectronNET.API.Entities;
 using InfinityModTool.Data;
 using InfinityModTool.Data.Modifications;
 using InfinityModTool.Data.Utilities;
@@ -55,8 +56,9 @@ namespace InfinityModTool.Services
 
 		public ListOption[] GetAvailableReplacementCharacters(string idName)
 		{
-			var takenNames = Settings.InstalledMods.Where(i => i.ModCategory == "Character").Select(i => i.Parameters["ReplacementCharacter"]);
-			var potentialNamePool = IDNames.Where(n => n.Value.Length == idName.Length && !takenNames.Contains(n.Value));
+			var mod = GetMod<CharacterModConfiguration>(idName);
+			var takenNames = Settings.InstalledMods.Where(i => i.ModCategory == "Character" && i.Parameters.ContainsKey("ReplacementCharacter")).Select(i => i.Parameters["ReplacementCharacter"]);
+			var potentialNamePool = IDNames.Where(n => n.Value.Length == mod.PresentationData.Name.Length && !takenNames.Contains(n.Value));
 			
 			return potentialNamePool.ToArray();
 		}
@@ -80,21 +82,15 @@ namespace InfinityModTool.Services
 			return AvailableMods.FirstOrDefault(m => m.ModID == modID && m is T) as T;
 		}
 
-		public async Task InstallCharacterMod(ModInstallationData modData)
+		public async Task<ModUtility.InstallInfo> InstallCharacterMod(ModInstallationData modToInstall)
 		{
-			Settings.InstalledMods.Add(modData);
-
-			await UpdateModConfiguration();
-			SaveSettings();
+			return await UpdateModConfiguration(modToInstall, true);
 		}
 
-		public async Task UninstallMod(string idName)
+		public async Task<ModUtility.InstallInfo> UninstallMod(string idName)
 		{
 			var modToRemove = Settings.InstalledMods.FirstOrDefault(m => m.ModID == idName);
-			Settings.InstalledMods.Remove(modToRemove);
-
-			await UpdateModConfiguration();
-			SaveSettings();
+			return await UpdateModConfiguration(modToRemove, false);
 		}
 
 		public void SaveSettings()
@@ -102,19 +98,40 @@ namespace InfinityModTool.Services
 			SettingsUtility.SaveSettings(Settings, USER_SETTINGS);
 		}
 
-		private async Task UpdateModConfiguration()
+		private async Task<ModUtility.InstallInfo> UpdateModConfiguration(ModInstallationData mod, bool install)
 		{
 			if (!CheckSteamPathSettings())
 				throw new System.Exception("Cannot apply mods if the steam installation path has not been set");
 
 			var configuration = new Configuration() { SteamInstallationPath = Settings.SteamInstallationPath };
+			var allMods = new List<ModInstallationData>(Settings.InstalledMods);
 
-			var mods = Settings.InstalledMods.Select(i => new GameModification() { 
+			if (install)
+				allMods.Add(mod);
+			else
+				allMods.Remove(mod);
+
+			var gameModifications = allMods.Select(i => new GameModification() { 
 				Config = GetMod(i.ModID),
 				Parameters = i.Parameters
 			}).ToArray();
 
-			await ModUtility.ApplyChanges(configuration, mods);
+			var result = await ModUtility.ApplyChanges(configuration, gameModifications);
+
+			// Only update if we successfully installed/uninstalled mods
+			if (result.status == ModUtility.InstallationStatus.Success)
+			{
+				Settings.InstalledMods = allMods;
+			}
+			else if (result.status == ModUtility.InstallationStatus.Error)
+			{
+				// We remove all installed mods in this instance (something bad has happened) - TODO: This doesn't seem like desireable behaviour
+				Settings.InstalledMods.Clear();
+			}
+
+			SaveSettings();
+
+			return result;
 		}
 
 		private bool CheckSteamPathSettings()

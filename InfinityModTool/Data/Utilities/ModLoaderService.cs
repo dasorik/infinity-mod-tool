@@ -27,7 +27,6 @@ namespace InfinityModTool.Data.Utilities
 			public string executionPath;
 			public string modPath;
 			public string extractBasePath;
-			public string modCachePath;
 		}
 
 		public static ListOption[] GetIDNameListOptions()
@@ -46,21 +45,18 @@ namespace InfinityModTool.Data.Utilities
 			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 			var modPath = Path.Combine(executionPath, MOD_PATH);
 			var extractBasePath = Path.Combine(Global.APP_DATA_FOLDER, "Temp");
-			var modCachePath = Path.Combine(Global.APP_DATA_FOLDER, "ModCache");
 
 			var pathInfo = new ModPathInfo()
 			{
 				executionPath = executionPath,
 				modPath = modPath,
-				extractBasePath = extractBasePath,
-				modCachePath = modCachePath
+				extractBasePath = extractBasePath
 			};
 			
 			if (!Directory.Exists(modPath))
 				Directory.CreateDirectory(modPath);
 
 			DeleteAndRecreateFolder(extractBasePath);
-			DeleteAndRecreateFolder(modCachePath);
 
 			var mods = new List<BaseModConfiguration>();
 
@@ -83,7 +79,7 @@ namespace InfinityModTool.Data.Utilities
 			{
 				var extractFolder = Path.Combine(pathInfo.extractBasePath, fileInfo.Name);
 				System.IO.Compression.ZipFile.ExtractToDirectory(fileInfo.FullName, extractFolder);
-
+				
 				var configPath = Path.Combine(extractFolder, "config.json");
 				
 				if (!File.Exists(configPath))
@@ -95,16 +91,8 @@ namespace InfinityModTool.Data.Utilities
 				if (string.IsNullOrEmpty(modData.ModID) || modData.Version > 1)
 					return false;
 				
-				var destinationPath = Path.Combine(pathInfo.modCachePath, modData.ModID);
-
-				// Delete the directory and re-save cache the mod data
-				if (Directory.Exists(destinationPath))
-					Directory.Delete(destinationPath, true);
-				
 				modData = LoadModData(modData, extractFolder);
-				Directory.Move(extractFolder, destinationPath);
-				
-				modData.ModCachePath = destinationPath;
+				modData.ModCachePath = extractFolder;
 
 				// Temporary work around since we can't appear to load images from %APPDATA%
 				var imageBytes = File.ReadAllBytes(Path.Join(modData.ModCachePath, modData.DisplayImage));
@@ -144,8 +132,12 @@ namespace InfinityModTool.Data.Utilities
 		static CostumeCoinModConfiguration LoadCostumeCoinModData(BaseModConfiguration configuration, string extractPath)
 		{
 			var configPath = Path.Combine(extractPath, "config.json");
-			var modData = JsonMapper.ToObject<CostumeCoinModConfiguration>(File.ReadAllText(configPath));
+			var presentationPath = Path.Combine(extractPath, "presentation.json");
 
+			var modData = JsonMapper.ToObject<CostumeCoinModConfiguration>(File.ReadAllText(configPath));
+			var presentationData = JsonMapper.ToObject<CostumeCoinData>(File.ReadAllText(presentationPath));
+
+			modData.PresentationData = presentationData;
 			return modData;
 		}
 

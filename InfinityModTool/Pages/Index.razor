@@ -3,24 +3,27 @@
 @page "/mods/{category}"
 @inject InfinityModTool.Services.ModService modService;
 
+@using InfinityModTool.Utilities;
+
+
 @if (showLoadingIcon)
 {
     <LoadingScreen></LoadingScreen>
 }
 
-@if (showConfirmation)
+@if (confirmConfig?.CanShow ?? false)
 {
-    <PopupConfirm Type="@AlertLevel.Warning" Title="@GetInstallMessage()" Message="This will modify your Disney Infinity 3.0 game installation" ConfirmedChanged="@(async (confirmed) => await InstallUninstall(confirmed, installContext))"></PopupConfirm>
+    <PopupConfirm Type="@confirmConfig.level" Title="@confirmConfig.title" Message="@confirmConfig.message" ConfirmedChanged="async (confirmed) => { confirmConfig.Hide(); if (confirmed) await confirmConfig.confirmAction?.Invoke(); }"></PopupConfirm>
 }
 
-@if (showReplaceConfirmation)
+@if (replaceConfig?.CanShow ?? false)
 {
-    <PopupConfirmReplace Type="@AlertLevel.Warning" Title="@GetInstallMessage()" Message="Please select a character below to replace, This will modify your Disney Infinity 3.0 game installation" ConfirmedPressed="@(async (id) => await InstallUninstall(id, installContext))" CancelPressed="() => showReplaceConfirmation = false" Options="@modService.GetAvailableReplacementCharacters(installContext.ModID)"></PopupConfirmReplace>
+    <PopupConfirmReplace Type="@replaceConfig.level" Title="@replaceConfig.title" Message="@replaceConfig.message" ConfirmedPressed="async (id) => { replaceConfig.Hide(); await replaceConfig.confirmAction?.Invoke(id); }" CancelPressed="() => replaceConfig = null" Options="@modService.GetAvailableReplacementCharacters(installContext.ModID)"></PopupConfirmReplace>
 }
 
-@if (showAlert)
+@if (alertConfig?.CanShow ?? false)
 {
-    <PopupAlert Message="@alertMessage" OnDismissed="@(() => showAlert = false)"></PopupAlert>
+    <PopupAlert Type="@alertConfig.level" Title="@alertConfig.title" Message="@alertConfig.message" OnDismissed="() => alertConfig.Hide()"></PopupAlert>
 }
 
 @if (!string.IsNullOrEmpty(warningMessage))
@@ -42,9 +45,9 @@
     [Parameter] public string category { get; set; }
 
     bool showLoadingIcon = false;
-    bool showConfirmation = false;
-    bool showReplaceConfirmation = false;
-    bool showAlert = false;
+    ConfirmationDialogConfig confirmConfig = null;
+    ConfirmationDialogConfig<string> replaceConfig = null;
+    AlertDialogConfig alertConfig = null;
 
     bool install = false;
     bool requiresReplacement = false;
@@ -58,25 +61,21 @@
     protected override void OnParametersSet()
     {
         if (string.IsNullOrEmpty(modService.Settings.SteamInstallationPath))
-        {
             warningMessage = "Steam installation path has not been set, please set this via the settings tab";
-            return;
-        }
 
         mods = modService.GetModsForCategory(category);
-    }
-
-    void ShowConfirmationModal()
-    {
-        showConfirmation = true;
     }
 
     void SelectMod(string modID)
     {
         if (string.IsNullOrEmpty(modService.Settings.SteamInstallationPath))
         {
-            alertMessage = "Steam installation path has not been set, please set this in 'Settings'";
-            showAlert = true;
+            ShowAlertDialog(
+                title: null,
+                message: "Steam installation path has not been set, please set this in 'Settings'",
+                level: AlertLevel.Info
+            );
+
             return;
         }
 
@@ -87,7 +86,7 @@
         if (modData.ModCategory == "Character")
             SelectCharacterMod(modData as Data.CharacterModConfiguration);
         else
-            showConfirmation = true;
+            ShowInstallConfirmationDialog();
     }
 
     void SelectCharacterMod(Data.CharacterModConfiguration modData)
@@ -95,32 +94,84 @@
         requiresReplacement = modData?.ReplaceCharacter ?? false;
 
         if (requiresReplacement && install)
-            showReplaceConfirmation = true;
+            ShowReplaceConfirmationDialog();
         else
-            showConfirmation = true;
+            ShowInstallConfirmationDialog();
+    }
+
+    void ShowInstallConfirmationDialog()
+    {
+        confirmConfig = new ConfirmationDialogConfig()
+        {
+            title = GetInstallMessage(),
+            message = "This will modify your Disney Infinity 3.0 game installation",
+            level = AlertLevel.Warning,
+            confirmAction = () => InstallUninstall(installContext)
+        };
+
+        confirmConfig.Show();
+    }
+
+    void ShowReplaceConfirmationDialog()
+    {
+        replaceConfig = new ConfirmationDialogConfig<string>()
+        {
+            title = GetInstallMessage(),
+            message = "Please select a character below to replace, This will modify your Disney Infinity 3.0 game installation",
+            level = AlertLevel.Warning,
+            confirmAction = (id) => InstallUninstall(id, installContext)
+        };
+
+        replaceConfig.Show();
+    }
+
+    void ShowAlertDialog(string title, string message, AlertLevel level)
+    {
+        alertConfig = new AlertDialogConfig()
+        {
+            title = title,
+            message = message,
+            level = level
+        };
+
+        alertConfig.Show();
     }
 
     async Task InstallUninstall(string selectedCharacterID, Data.ModInstallationData modification)
     {
         modification.Parameters.Add("ReplacementCharacter", selectedCharacterID);
-        await InstallUninstall(true, modification);
+        await InstallUninstall(modification);
     }
 
-    async Task InstallUninstall(bool confirm, Data.ModInstallationData modification)
+    async Task InstallUninstall(Data.ModInstallationData modification)
     {
-        this.showConfirmation = false;
-        this.showReplaceConfirmation = false;
-
-        // User has cancelled operation
-        if (!confirm)
-            return;
-
         showLoadingIcon = true;
 
+        ModUtility.InstallInfo installStatus;
+
         if (install)
-            await modService.InstallCharacterMod(modification);
+            installStatus = await modService.InstallCharacterMod(modification);
         else
-            await modService.UninstallMod(modification.ModID);
+            installStatus = await modService.UninstallMod(modification.ModID);
+
+        switch (installStatus.status)
+        {
+            case ModUtility.InstallationStatus.Error:
+                ShowAlertDialog(
+                    title: "Oops, something went wrong!",
+                    message: "Something went wrong during mod installation. All mods have been uninstalled, and your game has been restored",
+                    level: AlertLevel.Error
+                );
+                break;
+            case ModUtility.InstallationStatus.Conflict:
+                var conflictingMods = installStatus.conflicts.Select(m => modService.GetMod(m).DisplayName);
+                ShowAlertDialog(
+                    title: "Mod conflict detected",
+                    message: $"The mod being installed conflicts with the following installed mods, and has not been installed: {string.Join(", ", conflictingMods)}",
+                    level: AlertLevel.Error
+                );
+                break;
+        }
 
         showLoadingIcon = false;
     }
