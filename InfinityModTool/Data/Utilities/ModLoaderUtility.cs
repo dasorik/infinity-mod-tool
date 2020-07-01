@@ -12,7 +12,7 @@ using System;
 
 namespace InfinityModTool.Data.Utilities
 {
-	public class ModLoaderService
+	public class ModLoaderUtility
 	{
 #if DEBUG
 		const string MOD_PATH = "..\\..\\..\\Mods";
@@ -95,8 +95,9 @@ namespace InfinityModTool.Data.Utilities
 				modData.ModCachePath = extractFolder;
 
 				// Temporary work around since we can't appear to load images from %APPDATA%
-				var imageBytes = File.ReadAllBytes(Path.Join(modData.ModCachePath, modData.DisplayImage));
-				modData.DisplayImageBase64 = "data:image/png;base64," + Convert.ToBase64String(imageBytes);
+				var imageFileInfo = new FileInfo(Path.Join(modData.ModCachePath, modData.DisplayImage));
+				var imageBytes = File.ReadAllBytes(imageFileInfo.FullName);
+				modData.DisplayImageBase64 = $"data:image/{imageFileInfo.Extension};base64," + Convert.ToBase64String(imageBytes);
 
 				return true;
 			}
@@ -112,6 +113,8 @@ namespace InfinityModTool.Data.Utilities
 					return LoadCharacterModData(configuration, extractPath);
 				case "CostumeCoin":
 					return LoadCostumeCoinModData(configuration, extractPath);
+				case "Playset":
+					return LoadPlaysetModData(configuration, extractPath);
 				default:
 					return configuration;
 			}
@@ -138,6 +141,13 @@ namespace InfinityModTool.Data.Utilities
 			var presentationData = JsonMapper.ToObject<CostumeCoinData>(File.ReadAllText(presentationPath));
 
 			modData.PresentationData = presentationData;
+			return modData;
+		}
+
+		static PlaysetModConfiguration LoadPlaysetModData(BaseModConfiguration configuration, string extractPath)
+		{
+			var configPath = Path.Combine(extractPath, "config.json");
+			var modData = JsonMapper.ToObject<PlaysetModConfiguration>(File.ReadAllText(configPath));
 			return modData;
 		}
 

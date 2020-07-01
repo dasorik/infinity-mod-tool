@@ -26,8 +26,8 @@ namespace InfinityModTool.Services
 			if (Settings.InstalledMods == null)
 				Settings.InstalledMods = new List<ModInstallationData>();
 
-			this.IDNames = ModLoaderService.GetIDNameListOptions();
-			this.AvailableMods = ModLoaderService.LoadMods(CurrentVersion);
+			this.IDNames = ModLoaderUtility.GetIDNameListOptions();
+			this.AvailableMods = ModLoaderUtility.LoadMods(CurrentVersion);
 		}
 
 		public IEnumerable<T> GetInstalledMods<T>()

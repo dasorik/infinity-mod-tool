@@ -55,16 +55,20 @@ namespace InfinityModTool.Utilities
 				
 				var virtualreaderFile = Path.Combine(tempFolder, "presentation", "virtualreaderpc_data.lua");
 				var virtualreaderDecompiledFile = Path.Combine(tempFolder, "virtualreaderpc_data_decomp.lua");
+				var playsetlistwin32File = Path.Combine(tempFolder, "presentation", "playsetlistwin32.lua");
+				var playsetlistwin32DecompiledFile = Path.Combine(tempFolder, "playsetlistwin32_decomp.lua");
 				var igpLocksFile = Path.Combine(tempFolder, "igp", "locks__lua.chd");
 
 				await UnluacUtility.Decompile(virtualreaderFile, virtualreaderDecompiledFile);
-				
+				await UnluacUtility.Decompile(playsetlistwin32File, playsetlistwin32DecompiledFile);
+
 				// Get mod types
 				var characterMods = mods.Where(m => m.Config.ModCategory.SafeEquals("Character"));
 				var costumeCoinMods = mods.Where(m => m.Config.ModCategory.SafeEquals("CostumeCoin"));
+				var playsetMods = mods.Where(m => m.Config.ModCategory.SafeEquals("Playset"));
 
-				var characterJson = GenerateCharacterJson(characterMods.Select(m => m.GetConfig<CharacterModConfiguration>()).ToArray());
-				var costumeCoinJson = GenerateCostumeCoinJson(costumeCoinMods.Select(m => m.GetConfig<CostumeCoinModConfiguration>()).ToArray());
+				var characterJson = GenerateCharacterJson(characterMods.Select(m => m.GetConfig<CharacterModConfiguration>()));
+				var costumeCoinJson = GenerateCostumeCoinJson(costumeCoinMods.Select(m => m.GetConfig<CostumeCoinModConfiguration>()));
 
 				// Write any data as required to the virtualreader file, make sure to offset by bytesWritten if needed
 				var fileWrites = new Dictionary<string, List<FileWrite>>();
@@ -95,6 +99,13 @@ namespace InfinityModTool.Utilities
 
 						FileWriterUtility.WriteToFileRange(virtualreaderDecompiledFile, GenerateCharacterJson(characterData), startIndex, endIndex, fileWrites, true);
 					}
+				}
+
+				// Unlock playsets
+				foreach (var mod in playsetMods)
+				{
+					var config = mod.GetConfig<PlaysetModConfiguration>();
+					AddPlayset(config, playsetlistwin32DecompiledFile, fileWrites);
 				}
 			}
 			catch (Exception ex)
@@ -158,7 +169,7 @@ namespace InfinityModTool.Utilities
 			DeleteFromFolder(flashFolder, ".gfx");
 		}
 
-		private static string GenerateCharacterJson(CharacterModConfiguration[] mods)
+		private static string GenerateCharacterJson(IEnumerable<CharacterModConfiguration> mods)
 		{
 			var presentationDataToWrite = mods.Where(m => m.WriteToCharacterList);
 			var jsonWriter = new StringBuilder();
@@ -172,7 +183,7 @@ namespace InfinityModTool.Utilities
 			return jsonWriter.ToString();
 		}
 
-		private static string GenerateCostumeCoinJson(CostumeCoinModConfiguration[] mods)
+		private static string GenerateCostumeCoinJson(IEnumerable<CostumeCoinModConfiguration> mods)
 		{
 			var presentationDataToWrite = mods.Where(m => m.WriteToCostumeCoinList);
 			var jsonWriter = new StringBuilder();
@@ -315,10 +326,12 @@ namespace InfinityModTool.Utilities
 			var igpFolder = Path.Combine(configuration.SteamInstallationPath, "assets", "gamedb", "igp");
 			var flashFolder = Path.Combine(configuration.SteamInstallationPath, "assets", "flash");
 			var virtualReaderFile = Path.Combine(presentationFolder, "virtualreaderpc_data.lua");
+			var playsetlistwin32File = Path.Combine(presentationFolder, "playsetlistwin32.lua");
 
 			var tempPresentationFolder = Path.Combine(tempFolder, "presentation");
 			var tempIgpFolder = Path.Combine(tempFolder, "igp");
 			var tempVirtualReaderFile = Path.Combine(tempFolder, "virtualreaderpc_data_decomp.lua");
+			var tempPlaysetlistwin32File = Path.Combine(tempFolder, "playsetlistwin32_decomp.lua");
 			var tempFlashFile = Path.Combine(tempFolder, "presentation", "flash", "container.gfx");
 
 			// Copy all items from the presentation folder, except for the flash folder
@@ -327,6 +340,9 @@ namespace InfinityModTool.Utilities
 
 			// Override the virtualreaderpc_data.lua file
 			File.Copy(tempVirtualReaderFile, virtualReaderFile, true);
+
+			// Override the playsetlistwin32.lua file
+			File.Copy(tempPlaysetlistwin32File, playsetlistwin32File, true);
 
 			// Copy contents into the flash folder
 			CopyFileIntoFolder(tempFlashFile, flashFolder, true);
@@ -360,6 +376,20 @@ namespace InfinityModTool.Utilities
 		private static bool ModRequiresReplacement(GameModification modification)
 		{
 			return !string.IsNullOrEmpty(modification.Parameters.GetValueOrDefault("ReplacementCharacter", null));
+		}
+
+		private static void AddPlayset(PlaysetModConfiguration config, string playsetListFile, Dictionary<string, List<FileWrite>> fileWrites)
+		{
+			var injectedCodeUI = $"        self:AddListButton(\"{config.Name}\")\r\n";
+			var injectedCodeAdd = $"    self:AddListButton(\"{config.Name}\")\r\n";
+			var injectedCodeOr = $" or t.id ~= \"{config.Name}\"";
+			var injectedCodeAnd = $" and t.id ~= \"{config.Name}\"";
+
+			FileWriterUtility.WriteToFile(playsetListFile, injectedCodeAnd, 0x00000BB3, true, fileWrites, false);
+			FileWriterUtility.WriteToFile(playsetListFile, injectedCodeOr, 0x00001115, true, fileWrites, false);
+
+			FileWriterUtility.WriteToFile(playsetListFile, injectedCodeUI, 0x00002846, true, fileWrites, false);
+			FileWriterUtility.WriteToFile(playsetListFile, injectedCodeAdd, 0x000028FD, true, fileWrites, false);
 		}
 
 	}
