@@ -14,11 +14,13 @@ namespace InfinityModTool.Utilities
 	{
 		public readonly long offset;
 		public readonly long bytesWritten;
+		public readonly long bytesAdded;
 
-		public FileWrite(long offset, long bytesWritten)
+		public FileWrite(long offset, long bytesWritten, long bytesAdded)
 		{
 			this.offset = offset;
 			this.bytesWritten = bytesWritten;
+			this.bytesAdded = bytesAdded;
 		}
 	}
 
@@ -50,7 +52,7 @@ namespace InfinityModTool.Utilities
 				Array.Copy(buffer, 0, tempBuffer, actualOffset, buffer.Length);
 			}
 
-			var writeInfo = InsertToWriteCache(filePath, actualOffset, buffer.Length, writeCache);
+			var writeInfo = InsertToWriteCache(filePath, memoryOffset, buffer.Length, insert ? buffer.Length : 0, writeCache);
 			File.WriteAllBytes(filePath, tempBuffer);
 
 			return writeInfo;
@@ -71,16 +73,16 @@ namespace InfinityModTool.Utilities
 			Array.Copy(textBuffer, 0, tempBuffer, actualStartOffset, textBuffer.Length);
 			Array.Copy(fileBytes, actualEndOffset, tempBuffer, actualStartOffset + textBuffer.LongLength, fileBytes.LongLength - actualEndOffset);
 
-			var writeInfo = InsertToWriteCache(filePath, actualStartOffset + replaceRange, text.Length - replaceRange, writeCache);
+			var writeInfo = InsertToWriteCache(filePath, startOffset, text.Length, text.Length - replaceRange, writeCache);
 			File.WriteAllBytes(filePath, tempBuffer);
 
 			return writeInfo;
 		}
 
 		// TODO: We need a nice way to deal with removal of text
-		private static FileWrite InsertToWriteCache(string filePath, long offset, long bytesWritten, Dictionary<string, List<FileWrite>> writeCache)
+		private static FileWrite InsertToWriteCache(string filePath, long offset, long bytesWritten, long bytesAdded, Dictionary<string, List<FileWrite>> writeCache)
 		{
-			var writeInfo = new FileWrite(offset, bytesWritten);
+			var writeInfo = new FileWrite(offset, bytesWritten, bytesAdded);
 
 			if (!writeCache.ContainsKey(filePath))
 				writeCache.Add(filePath, new List<FileWrite>());
@@ -113,7 +115,7 @@ namespace InfinityModTool.Utilities
 			foreach (var write in orderedWrites)
 			{
 				if (write.offset <= memoryOffset)
-					newMemoryOffset += write.bytesWritten;
+					newMemoryOffset += write.bytesAdded;
 				else
 					break;
 			}
