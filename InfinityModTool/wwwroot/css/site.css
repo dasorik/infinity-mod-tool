@@ -227,6 +227,12 @@ app {
     width: 500px;
 }
 
+.settings-row > .settings-button {
+    display: table-cell;
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
 .vertical-align-helper {
     display: inline-block;
     height: 100%;
@@ -252,6 +258,10 @@ img .vertical-align {
 
 .alert span.icon.alert-warning {
     background-image: url('../img/alert-warning.svg')
+}
+
+.alert span.icon.alert-danger {
+    background-image: url('../img/alert-error.svg')
 }
 
 .popup-container {
