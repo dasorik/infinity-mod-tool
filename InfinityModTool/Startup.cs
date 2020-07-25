@@ -32,6 +32,7 @@ namespace InfinityModTool
 			services.AddRazorPages();
 			services.AddServerSideBlazor();
 			services.AddSingleton<ModService>();
+			services.AddSingleton<ToolService>();
 		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

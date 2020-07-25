@@ -1,4 +1,6 @@
-﻿<div class="top-row pl-4 navbar navbar-dark">
+﻿@inject InfinityModTool.Services.ModService modService;
+
+<div class="top-row pl-4 navbar navbar-dark">
     <a class="navbar-brand" href="">Infinity Mod Tool</a>
     <span class="version-number">v0.0.1</span>
     <button class="navbar-toggler" @onclick="ToggleNavMenu">
@@ -33,6 +35,15 @@
                 <span class="nav-icon gear" aria-hidden="true"></span> Settings
             </NavLink>
         </li>
+
+        @if (modService.Settings.ModdingToolsEnabled)
+        {
+            <li class="nav-item px-3">
+                <NavLink class="nav-link" href="Tools">
+                    <span class="nav-icon gear" aria-hidden="true"></span> Modding Tools
+                </NavLink>
+            </li>
+        }
     </ul>
 </div>
 

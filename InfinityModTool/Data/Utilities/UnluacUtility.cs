@@ -13,6 +13,21 @@ namespace InfinityModTool.Utilities
 {
 	public class UnluacUtility
 	{
+		public static async Task DecompileFolder(string folder)
+		{
+			foreach (var file in Directory.GetFiles(folder))
+			{
+				var info = new FileInfo(file);
+
+				if (info.Extension != ".lua")
+					continue;
+
+				var tempPath = Path.Combine(info.DirectoryName, $"__temp__{info.Name}");
+				await Decompile(file, tempPath);
+				File.Move(tempPath, file, true);
+			}
+		}
+
 		public static async Task Decompile(string inputPath, string outputPath)
 		{
 			await Task.Run(() => DecompileSync(inputPath, outputPath));

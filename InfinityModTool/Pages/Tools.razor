@@ -1,0 +1,86 @@
+﻿@page "/Tools"
+@inject InfinityModTool.Services.ToolService toolService;
+
+@if (showLoadingIcon)
+{
+    <LoadingScreen></LoadingScreen>
+}
+
+<h1>Tools</h1>
+
+<hr />
+
+<BannerAlert Type="Error" Message="USE THESE TOOLS WITH CAUTION! It is not recommended that you use these if you aren't sure what they do"></BannerAlert>
+
+<div class="settings-container">
+    <div class="settings-row">
+        <label for="setting-steampath">Unluac Decompile Folder</label>
+        <div class="settings-options">
+            <input type="text" id="decompile-folder" class="form-control" @bind="@DecompileFolder" />
+        </div>
+        <div class="settings-button">
+            <button @onclick="@(async () => await UnluacDecompileFolder())" disabled="@(!System.IO.Directory.Exists(DecompileFolder))" class="btn btn-primary">Decompile</button>
+        </div>
+    </div>
+    <div class="settings-row">
+        <label for="setting-steampath">QuickBMS Extract</label>
+        <div class="settings-options">
+            <input type="text" id="decompile-folder" class="form-control" @bind="@ExtractFolder" />
+        </div>
+        <div class="settings-button">
+            <button @onclick="@(async () => await QuickBMSExtract())" disabled="@(!System.IO.Directory.Exists(ExtractFolder))" class="btn btn-primary">Extract</button>
+        </div>
+    </div>
+</div>
+
+@if (alertConfig?.CanShow ?? false)
+{
+    <PopupAlert Type="@alertConfig.level" Title="@alertConfig.title" Message="@alertConfig.message" OnDismissed="() => alertConfig.Hide()"></PopupAlert>
+}
+
+@code {
+    private bool showLoadingIcon = false;
+    private string DecompileFolder;
+    private string ExtractFolder;
+    private AlertDialogConfig alertConfig;
+
+    public async Task UnluacDecompileFolder()
+    {
+        showLoadingIcon = true;
+        var success = await toolService.UnluacDecompileFolder(DecompileFolder);
+
+        if (!success)
+        {
+            alertConfig = new AlertDialogConfig()
+            {
+                title = "Oops, something went wrong",
+                message = "Something went wrong during the Unluac process, some files may not have been decompiled",
+                level = AlertLevel.Error
+            };
+
+            alertConfig.Show();
+        }
+
+        showLoadingIcon = false;
+    }
+
+    public async Task QuickBMSExtract()
+    {
+        showLoadingIcon = true;
+        var success = await toolService.QuickBMSFolder(ExtractFolder, true);
+
+        if (!success)
+        {
+            alertConfig = new AlertDialogConfig()
+            {
+                title = "Oops, something went wrong",
+                message = "Something went wrong during the QuickBMS process, some files may not have been extracted",
+                level = AlertLevel.Error
+            };
+
+            alertConfig.Show();
+        }
+
+        showLoadingIcon = false;
+    }
+}

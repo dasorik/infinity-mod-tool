@@ -15,6 +15,7 @@ namespace InfinityModTool.Data
 	public class UserModData
 	{
 		public string SteamInstallationPath;
+		public bool ModdingToolsEnabled;
 		public List<ModInstallationData> InstalledMods = new List<ModInstallationData>();
 	}
 }

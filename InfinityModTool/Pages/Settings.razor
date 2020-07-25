@@ -17,6 +17,13 @@
             }
         </div>
     </div>
+
+    <div class="settings-row">
+        <label for="setting-steampath">Enable Modding Tools</label>
+        <div class="settings-options checkbox">
+            <input type="checkbox" id="setting-enablemodtools" @bind="@modToolsEnabled" />
+        </div>
+    </div>
 </div>
 
 <hr />
@@ -25,10 +32,11 @@
 
 @code {
     private bool saveEnabled = true;
+    private bool modToolsEnabled;
+    private string steamInstallationPath;
 
     private Data.ValidationResponse steamPathValidation;
 
-    private string steamInstallationPath;
     string SteamInstallationPath
     {
         get => steamInstallationPath;
@@ -38,6 +46,7 @@
             ValidateSettings();
         }
     }
+
 
     protected override void OnInitialized()
     {
@@ -70,7 +79,8 @@
 
     void SaveSettings()
     {
-        modService.Settings.SteamInstallationPath = SteamInstallationPath;
+        modService.Settings.SteamInstallationPath = steamInstallationPath;
+        modService.Settings.ModdingToolsEnabled = modToolsEnabled;
         modService.SaveSettings();
     }
 }
