@@ -9,6 +9,8 @@ using System.Drawing.Imaging;
 using System.Security.Cryptography;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
+using InfinityModTool.Data.InstallActions;
+using InfinityModTool.Enums;
 
 namespace InfinityModTool.Data.Utilities
 {
@@ -29,18 +31,30 @@ namespace InfinityModTool.Data.Utilities
 			public string extractBasePath;
 		}
 
+		public class ModLoadResult
+		{
+			public readonly string modPath;
+			public readonly ModLoadStatus status;
+
+			public ModLoadResult(string modPath, ModLoadStatus status)
+			{
+				this.modPath = modPath;
+				this.status = status;
+			}
+		}
+
 		public static ListOption[] GetIDNameListOptions()
 		{
 			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 			var idNamePath = Path.Combine(executionPath, CHARACTER_ID_NAMES);
 
 			var fileData = File.ReadAllText(idNamePath);
-			var idNames = JsonMapper.ToObject<IDNames>(fileData);
+			var idNames = Newtonsoft.Json.JsonConvert.DeserializeObject<IDNames>(fileData);
 
 			return idNames.CharacterIDs.Select(id => new ListOption(id.ID, id.DisplayName)).ToArray();
 		}
 
-		public static BaseModConfiguration[] LoadMods(double currentVersion)
+		public static BaseModConfiguration[] LoadMods(double currentVersion, List<ModLoadResult> allResults)
 		{
 			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 			var modPath = Path.Combine(executionPath, MOD_PATH);
@@ -59,65 +73,165 @@ namespace InfinityModTool.Data.Utilities
 			DeleteAndRecreateFolder(extractBasePath);
 
 			var mods = new List<BaseModConfiguration>();
+			allResults.Clear();
 
 			foreach (var file in Directory.GetFiles(modPath))
 			{
 				var fileInfo = new FileInfo(file);
+				var result = TryLoadV1Mod(fileInfo, pathInfo, out var modData);
 
-				if (TryLoadV1Mod(fileInfo, pathInfo, out var modData))
+				if (result == ModLoadStatus.Success)
 					mods.Add(modData);
+
+				allResults.Add(new ModLoadResult(fileInfo.Name, result));
 			}
 
 			return mods.ToArray();
 		}
 
-		private static bool TryLoadV1Mod(FileInfo fileInfo, ModPathInfo pathInfo, out BaseModConfiguration modData)
+		private static ModLoadStatus TryLoadV1Mod(FileInfo fileInfo, ModPathInfo pathInfo, out BaseModConfiguration modData)
 		{
 			modData = null;
 
-			if (fileInfo.Extension == ".zip")
+			try
 			{
-				var extractFolder = Path.Combine(pathInfo.extractBasePath, fileInfo.Name);
-				System.IO.Compression.ZipFile.ExtractToDirectory(fileInfo.FullName, extractFolder);
-				
-				var configPath = Path.Combine(extractFolder, "config.json");
-				
-				if (!File.Exists(configPath))
-					return false;
-				
-				var fileData = File.ReadAllText(configPath);
-				modData = JsonMapper.ToObject<BaseModConfiguration>(fileData);
-				
-				if (string.IsNullOrEmpty(modData.ModID) || modData.Version > 1)
-					return false;
-				
-				modData = LoadModData(modData, extractFolder);
-				modData.ModCachePath = extractFolder;
+				if (fileInfo.Extension == ".mod")
+				{
+					var extractFolder = Path.Combine(pathInfo.extractBasePath, fileInfo.Name);
+					System.IO.Compression.ZipFile.ExtractToDirectory(fileInfo.FullName, extractFolder);
 
-				// Temporary work around since we can't appear to load images from %APPDATA%
-				var imageFileInfo = new FileInfo(Path.Join(modData.ModCachePath, modData.DisplayImage));
-				var imageBytes = File.ReadAllBytes(imageFileInfo.FullName);
-				modData.DisplayImageBase64 = $"data:image/{imageFileInfo.Extension};base64," + Convert.ToBase64String(imageBytes);
+					var configPath = Path.Combine(extractFolder, "config.json");
 
+					if (!File.Exists(configPath))
+						return ModLoadStatus.NoConfig;
+
+					var fileData = File.ReadAllText(configPath);
+					//JsonMapper.ToObject<BaseModConfiguration>(fileData);
+					modData = Newtonsoft.Json.JsonConvert.DeserializeObject<BaseModConfiguration>(fileData, new ModInstallActionConverter());
+
+					if (string.IsNullOrEmpty(modData.ModID))
+						return ModLoadStatus.ConfigInvalid;
+
+					if (modData.Version > 2)
+						return ModLoadStatus.UnsupportedVersion;
+
+					modData = LoadModData(modData, extractFolder);
+					modData.ModCachePath = extractFolder;
+
+					// Temporary work around since we can't appear to load images from %APPDATA%
+					var imageFileInfo = new FileInfo(Path.Join(modData.ModCachePath, modData.DisplayImage));
+					var imageBytes = File.ReadAllBytes(imageFileInfo.FullName);
+					modData.DisplayImageBase64 = $"data:image/{imageFileInfo.Extension};base64," + Convert.ToBase64String(imageBytes);
+
+					var configValid = CheckModConfigurationIsValid(modData);
+
+					return configValid ? ModLoadStatus.Success : ModLoadStatus.ConfigInvalid;
+				}
+				else
+				{
+					return ModLoadStatus.ExtensionInvalid;
+				}
+			}
+			catch (Exception ex)
+			{
+				return ModLoadStatus.UnspecifiedFailure;
+			}
+		}
+
+		static bool CheckModConfigurationIsValid(BaseModConfiguration configuration)
+		{
+			bool result = true;
+
+			// If we don't have any actions, no need to validate
+			if (configuration.InstallActions == null)
 				return true;
+
+			foreach (var action in configuration.InstallActions)
+			{
+				if (action is FileMoveAction)
+					result &= CheckFileMovAction(action as FileMoveAction);
+				else if (action is FileCopyAction)
+					result &= CheckFileCopyAction(action as FileCopyAction);
+				else if (action is FileDeleteAction)
+					result &= CheckFileDeleteAction(action as FileDeleteAction);
+				else if (action is FileReplaceAction)
+					result &= CheckFileReplaceAction(action as FileReplaceAction);
+				else if (action is FileWriteAction)
+					result &= CheckFileWriteAction(action as FileWriteAction);
+				else if (action is QuickBMSExtractAction)
+					result &= CheckQuickBMSExtractAction(action as QuickBMSExtractAction);
+				else if (action is UnluacDecompileAction)
+					result &= CheckUnluacDecompileAction(action as UnluacDecompileAction);
 			}
 
-			return false;
+			return result;
+		}
+
+		static bool CheckFileMovAction(FileMoveAction action)
+		{
+			return !string.IsNullOrWhiteSpace(action.TargetFile) && !string.IsNullOrWhiteSpace(action.DestinationPath);
+		}
+
+		static bool CheckFileCopyAction(FileCopyAction action)
+		{
+			return !string.IsNullOrWhiteSpace(action.TargetFile) && !string.IsNullOrWhiteSpace(action.DestinationPath);
+		}
+
+		static bool CheckFileDeleteAction(FileDeleteAction action)
+		{
+			return !string.IsNullOrWhiteSpace(action.TargetFile);
+		}
+
+		static bool CheckFileReplaceAction(FileReplaceAction action)
+		{
+			return !string.IsNullOrWhiteSpace(action.TargetFile) && !string.IsNullOrWhiteSpace(action.ReplacementFile);
+		}
+
+		static bool CheckFileWriteAction(FileWriteAction action)
+		{
+			if (string.IsNullOrWhiteSpace(action.TargetFile) || action.Content is null)
+				return false;
+
+			foreach (var content in action.Content)
+			{
+				if (!string.IsNullOrWhiteSpace(content.DataFilePath) && !string.IsNullOrWhiteSpace(content.Text))
+					return false;
+
+				if (content.Replace && !content.EndOffset.HasValue)
+					return false;
+			}
+
+			return true;
+		}
+
+		static bool CheckQuickBMSExtractAction(QuickBMSExtractAction action)
+		{
+			return action.TargetFiles != null;
+		}
+
+		static bool CheckUnluacDecompileAction(UnluacDecompileAction action)
+		{
+			return action.TargetFiles != null;
 		}
 
 		static BaseModConfiguration LoadModData(BaseModConfiguration configuration, string extractPath)
 		{
-			switch (configuration.ModCategory)
+			if (configuration.Version < 2)
 			{
-				case "Character":
-					return LoadCharacterModData(configuration, extractPath);
-				case "CostumeCoin":
-					return LoadCostumeCoinModData(configuration, extractPath);
-				case "Playset":
-					return LoadPlaysetModData(configuration, extractPath);
-				default:
-					return configuration;
+				switch (configuration.ModCategory)
+				{
+					case "Character":
+						return LoadCharacterModData(configuration, extractPath);
+					case "CostumeCoin":
+						return LoadCostumeCoinModData(configuration, extractPath);
+					case "Playset":
+						return LoadPlaysetModData(configuration, extractPath);
+					default:
+						return configuration;
+				}
 			}
+
+			return configuration;
 		}
 
 		static BaseModConfiguration LoadCharacterModData(BaseModConfiguration configuration, string extractPath)
@@ -125,8 +239,8 @@ namespace InfinityModTool.Data.Utilities
 			var configPath = Path.Combine(extractPath, "config.json");
 			var presentationPath = Path.Combine(extractPath, "presentation.json");
 
-			var modData = JsonMapper.ToObject<CharacterModConfiguration>(File.ReadAllText(configPath));
-			var presentationData = JsonMapper.ToObject<CharacterData>(File.ReadAllText(presentationPath));
+			var modData = Newtonsoft.Json.JsonConvert.DeserializeObject<CharacterModConfiguration>(File.ReadAllText(configPath));
+			var presentationData = Newtonsoft.Json.JsonConvert.DeserializeObject<CharacterData>(File.ReadAllText(presentationPath));
 
 			modData.PresentationData = presentationData;
 			return modData;
@@ -137,8 +251,8 @@ namespace InfinityModTool.Data.Utilities
 			var configPath = Path.Combine(extractPath, "config.json");
 			var presentationPath = Path.Combine(extractPath, "presentation.json");
 
-			var modData = JsonMapper.ToObject<CostumeCoinModConfiguration>(File.ReadAllText(configPath));
-			var presentationData = JsonMapper.ToObject<CostumeCoinData>(File.ReadAllText(presentationPath));
+			var modData = Newtonsoft.Json.JsonConvert.DeserializeObject<CostumeCoinModConfiguration>(File.ReadAllText(configPath));
+			var presentationData = Newtonsoft.Json.JsonConvert.DeserializeObject<CostumeCoinData>(File.ReadAllText(presentationPath));
 
 			modData.PresentationData = presentationData;
 			return modData;
@@ -147,7 +261,7 @@ namespace InfinityModTool.Data.Utilities
 		static PlaysetModConfiguration LoadPlaysetModData(BaseModConfiguration configuration, string extractPath)
 		{
 			var configPath = Path.Combine(extractPath, "config.json");
-			var modData = JsonMapper.ToObject<PlaysetModConfiguration>(File.ReadAllText(configPath));
+			var modData = Newtonsoft.Json.JsonConvert.DeserializeObject<PlaysetModConfiguration>(File.ReadAllText(configPath));
 			return modData;
 		}
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using InfinityModTool.Data.InstallActions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,5 +16,6 @@ namespace InfinityModTool.Data
 		public string DisplayName;
 		public string ModCachePath;
 		public string DisplayImageBase64;
+		public ModInstallAction[] InstallActions;
 	}
 }

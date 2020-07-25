@@ -2,7 +2,9 @@ using ElectronNET.API.Entities;
 using InfinityModTool.Data;
 using InfinityModTool.Data.Modifications;
 using InfinityModTool.Data.Utilities;
+using InfinityModTool.Enums;
 using InfinityModTool.Utilities;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,12 +14,16 @@ namespace InfinityModTool.Services
 	public class ModService
 	{
 		const string USER_SETTINGS = "UserSettings";
-		const double CurrentVersion = 1.0;
+		const double CurrentVersion = 2.0;
 
 		public ListOption[] IDNames { get; private set; }
 
 		public UserModData Settings = new UserModData();
 		public BaseModConfiguration[] AvailableMods = new BaseModConfiguration[0];
+
+		public bool ModLoadWarningShown = false;
+		public List<ModLoaderUtility.ModLoadResult> ModLoadResults = new List<ModLoaderUtility.ModLoadResult>();
+
 
 		public ModService()
 		{
@@ -27,7 +33,13 @@ namespace InfinityModTool.Services
 				Settings.InstalledMods = new List<ModInstallationData>();
 
 			this.IDNames = ModLoaderUtility.GetIDNameListOptions();
-			this.AvailableMods = ModLoaderUtility.LoadMods(CurrentVersion);
+			ReloadMods();
+		}
+
+		public void ReloadMods()
+		{
+			this.ModLoadWarningShown = false;
+			this.AvailableMods = ModLoaderUtility.LoadMods(CurrentVersion, ModLoadResults);
 		}
 
 		public IEnumerable<T> GetInstalledMods<T>()
@@ -116,17 +128,17 @@ namespace InfinityModTool.Services
 				Parameters = i.Parameters
 			}).ToArray();
 
-			var result = await ModUtility.ApplyChanges(configuration, gameModifications);
+			var result = await ModUtility.ApplyChanges(configuration, gameModifications, false);
 
-			// Only update if we successfully installed/uninstalled mods
-			if (result.status == ModUtility.InstallationStatus.Success)
+			switch (result.status)
 			{
-				Settings.InstalledMods = allMods;
-			}
-			else if (result.status == ModUtility.InstallationStatus.Error)
-			{
-				// We remove all installed mods in this instance (something bad has happened) - TODO: This doesn't seem like desireable behaviour
-				Settings.InstalledMods.Clear();
+				case InstallationStatus.Success:
+					Settings.InstalledMods = allMods;
+					break;
+				case InstallationStatus.FatalError:
+					// We remove all installed mods in this instance (something really bad has happened)
+					Settings.InstalledMods.Clear();
+					break;
 			}
 
 			SaveSettings();

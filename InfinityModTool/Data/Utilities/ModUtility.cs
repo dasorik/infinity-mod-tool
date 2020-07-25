@@ -1,8 +1,6 @@
 ﻿using InfinityModTool.Data;
-using Microsoft.AspNetCore.Routing;
 using System;
 using System.Collections.Generic;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -10,38 +8,43 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using InfinityModTool.Data.Modifications;
 using InfinityModTool.Extension;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
-using System.Data.Common;
+using InfinityModTool.Data.InstallActions;
+using System.Reflection;
+using InfinityModTool.Enums;
+using InfinityModTool.Models;
 
 namespace InfinityModTool.Utilities
 {
 	public class ModUtility
 	{
+		public class ReservedFileModificationException : Exception
+		{
+			public ReservedFileModificationException(string message) : base(message) { }
+		}
+
 		public class InstallInfo
 		{
 			public readonly InstallationStatus status;
-			public readonly string[] conflicts;
+			public readonly ModCollision[] conflicts;
 
 			public InstallInfo(InstallationStatus status)
-				: this(status, new string[0]) { }
+				: this(status, new ModCollision[0]) { }
 
-			public InstallInfo(InstallationStatus status, string[] conflicts)
+			public InstallInfo(InstallationStatus status, ModCollision[] conflicts)
 			{
 				this.status = status;
 				this.conflicts = conflicts;
 			}
 		}
 
-		public enum InstallationStatus
+		public static async Task<InstallInfo> ApplyChanges(Configuration configuration, GameModification[] mods, bool ignoreWarnings)
 		{
-			Success,
-			Conflict,
-			Error
+			return await ApplyChangesInternal(configuration, mods, ignoreWarnings, false);
 		}
-
-		public static async Task<InstallInfo> ApplyChanges(Configuration configuration, GameModification[] mods)
+		
+		public static async Task<InstallInfo> ApplyChangesInternal(Configuration configuration, GameModification[] mods, bool ignoreWarnings, bool reverting)
 		{
-			var tempFolder = FileWriterUtility.CreateTempFolder();
+			var tempFolder = CreateTempFolder();
 
 			// Start with a blank canvas
 			RemoveAllChanges(configuration);
@@ -51,6 +54,14 @@ namespace InfinityModTool.Utilities
 
 			try
 			{
+				var modActions = GetModActions(mods);
+				var collisionTracker = new ModCollisionTracker();
+
+				var conflicts = collisionTracker.CheckForPotentialModCollisions(mods.Last(), modActions);
+
+				if (conflicts.Length > 0)
+					return new InstallInfo(conflicts.Any(c => c.severity == ModCollisionSeverity.Clash) ? InstallationStatus.UnresolvableConflict : InstallationStatus.ResolvableConflict, conflicts);
+
 				await ExtractFiles(configuration, tempFolder);
 				
 				var virtualreaderFile = Path.Combine(tempFolder, "presentation", "virtualreaderpc_data.lua");
@@ -71,10 +82,10 @@ namespace InfinityModTool.Utilities
 				var costumeCoinJson = GenerateCostumeCoinJson(costumeCoinMods.Select(m => m.GetConfig<CostumeCoinModConfiguration>()));
 
 				// Write any data as required to the virtualreader file, make sure to offset by bytesWritten if needed
-				var fileWrites = new Dictionary<string, List<FileWrite>>();
+				var fileWriter = new FileWriterUtility();
 
-				FileWriterUtility.WriteToFile(virtualreaderDecompiledFile, characterJson, 0x0000A5C6, true, fileWrites, false);
-				FileWriterUtility.WriteToFile(virtualreaderDecompiledFile, costumeCoinJson, 0x0001588F + 1, true, fileWrites, false);
+				fileWriter.WriteToFile(virtualreaderDecompiledFile, characterJson, 0x0000A5C6, true, false);
+				fileWriter.WriteToFile(virtualreaderDecompiledFile, costumeCoinJson, 0x0001588F + 1, true, false);
 
 				// Apply character specific actions
 				foreach (var mod in characterMods)
@@ -82,7 +93,7 @@ namespace InfinityModTool.Utilities
 					if (ModRequiresReplacement(mod))
 					{
 						var offset = FindReplacementOffset(igpLocksFile, mod.Parameters["ReplacementCharacter"]);
-						FileWriterUtility.WriteToFile(igpLocksFile, mod.GetConfig<CharacterModConfiguration>().PresentationData.Name, offset, false, fileWrites, true);
+						fileWriter.WriteToFile(igpLocksFile, mod.GetConfig<CharacterModConfiguration>().PresentationData.Name, offset, false, true);
 					}
 				}
 
@@ -97,7 +108,7 @@ namespace InfinityModTool.Utilities
 						var characterData = GetCharacterDataFromFile(virtualreaderDecompiledFile, config.TargetCharacterID, out startIndex, out endIndex);
 						characterData.CostumeCoin = config.PresentationData.Name;
 
-						FileWriterUtility.WriteToFileRange(virtualreaderDecompiledFile, GenerateCharacterJson(characterData), startIndex, endIndex, fileWrites, true);
+						fileWriter.WriteToFileRange(virtualreaderDecompiledFile, GenerateCharacterJson(characterData), startIndex, endIndex, true);
 					}
 				}
 
@@ -105,21 +116,237 @@ namespace InfinityModTool.Utilities
 				foreach (var mod in playsetMods)
 				{
 					var config = mod.GetConfig<PlaysetModConfiguration>();
-					AddPlayset(config, playsetlistwin32DecompiledFile, fileWrites);
+					AddPlayset(config, playsetlistwin32DecompiledFile, fileWriter);
 				}
+
+				var extractedFiles = new List<string>();
+				var decompiledFiles = new List<string>();
+
+				foreach (var extractAction in modActions.extractActions)
+					await QuickBMSExtract(extractAction, tempFolder, extractedFiles, configuration);
+
+				foreach (var decompileAction in modActions.decompileActions)
+					await UnluacDecompile(decompileAction, tempFolder, decompiledFiles, configuration);
+
+				foreach (var fileCopyAction in modActions.fileCopyActions)
+					CopyFile(fileCopyAction, configuration);
+
+				foreach (var fileReplaceAction in modActions.fileReplaceActions)
+					ReplaceFile(fileReplaceAction, configuration);
+
+				foreach (var fileWriteAction in modActions.fileWriteActions)
+					WriteToFile(fileWriteAction, fileWriter, configuration);
+
+				foreach (var fileMoveAction in modActions.fileMoveActions)
+					MoveFile(fileMoveAction, configuration);
+
+				foreach (var fileDeleteAction in modActions.fileDeleteActions)
+					DeleteFile(fileDeleteAction, configuration);
 			}
 			catch (Exception ex)
 			{
 				Directory.Delete(tempFolder, true);
-				RemoveAllChanges(configuration);
 
-				return new InstallInfo(InstallationStatus.Error);
+				if (reverting)
+				{
+					// If we error out during revert, delete everything (something has gone badly wrong)
+					RemoveAllChanges(configuration);
+					return new InstallInfo(InstallationStatus.FatalError);
+				}
+				else
+				{
+					// Revert back to the previous install state
+					await ApplyChangesInternal(configuration, mods.Take(mods.Count() - 1).ToArray(), true, true);
+					return new InstallInfo(InstallationStatus.RolledBackError);
+				}
 			}
 
 			CopyFiles(configuration, tempFolder);
 			Directory.Delete(tempFolder, true);
 
 			return new InstallInfo(InstallationStatus.Success);
+		}
+
+		public static ModActionCollection GetModActions(GameModification[] mods)
+		{
+			// Custom actions
+			var extractActions = new List<ModAction<QuickBMSExtractAction>>();
+			var decompileActions = new List<ModAction<UnluacDecompileAction>>();
+			var fileMoveActions = new List<ModAction<FileMoveAction>>();
+			var fileDeleteActions = new List<ModAction<FileDeleteAction>>();
+			var fileWriteActions = new List<ModAction<FileWriteAction>>();
+			var fileReplaceActions = new List<ModAction<FileReplaceAction>>();
+			var fileCopyActions = new List<ModAction<FileCopyAction>>();
+
+			// We need to collate these steps, so we can minimize collision issues
+			foreach (var mod in mods)
+			{
+				var installActions = (mod.Config.InstallActions ?? new ModInstallAction[] { });
+
+				extractActions.AddRange(installActions.Where(a => a.Action.SafeEquals("QuickBMSExtract", ignoreCase: true)).Select(a => new ModAction<QuickBMSExtractAction>(mod, a as QuickBMSExtractAction)));
+				decompileActions.AddRange(installActions.Where(a => a.Action.SafeEquals("UnluacDecompile", ignoreCase: true)).Select(a => new ModAction<UnluacDecompileAction>(mod, a as UnluacDecompileAction)));
+				fileMoveActions.AddRange(installActions.Where(a => a.Action.SafeEquals("MoveFile", ignoreCase: true)).Select(a => new ModAction<FileMoveAction>(mod, a as FileMoveAction)));
+				fileDeleteActions.AddRange(installActions.Where(a => a.Action.SafeEquals("DeleteFile", ignoreCase: true)).Select(a => new ModAction<FileDeleteAction>(mod, a as FileDeleteAction)));
+				fileWriteActions.AddRange(installActions.Where(a => a.Action.SafeEquals("WriteToFile", ignoreCase: true)).Select(a => new ModAction<FileWriteAction>(mod, a as FileWriteAction)));
+				fileReplaceActions.AddRange(installActions.Where(a => a.Action.SafeEquals("ReplaceFile", ignoreCase: true)).Select(a => new ModAction<FileReplaceAction>(mod, a as FileReplaceAction)));
+				fileCopyActions.AddRange(installActions.Where(a => a.Action.SafeEquals("CopyFile", ignoreCase: true)).Select(a => new ModAction<FileCopyAction>(mod, a as FileCopyAction)));
+			}
+
+			return new ModActionCollection()
+			{
+				extractActions = extractActions,
+				decompileActions = decompileActions,
+				fileMoveActions = fileMoveActions,
+				fileDeleteActions = fileDeleteActions,
+				fileWriteActions = fileWriteActions,
+				fileReplaceActions = fileReplaceActions,
+				fileCopyActions = fileCopyActions
+			};
+		}
+
+		public static string CreateTempFolder()
+		{
+			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+			var tempDirectory = Path.Combine(executionPath, "Temp");
+
+			if (Directory.Exists(tempDirectory))
+				Directory.Delete(tempDirectory, true);
+
+			Directory.CreateDirectory(tempDirectory);
+
+			return tempDirectory;
+		}
+
+		private static async Task QuickBMSExtract(ModAction<QuickBMSExtractAction> modAction, string tempFolder, List<string> extractedFiles, Configuration config)
+		{
+			foreach (var file in modAction.action.TargetFiles)
+			{
+				var physicalTargetPath = ResolvePath(file, modAction.mod);
+				var fileInfo = new FileInfo(physicalTargetPath);
+
+				// Check if this has already been extracted
+				if (extractedFiles.Contains(physicalTargetPath))
+					continue;
+
+				await QuickBMSUtility.ExtractFiles(physicalTargetPath, tempFolder);
+
+				// Move all extracted files into the root folder
+				var newFolder = Path.Combine(tempFolder, Path.GetFileNameWithoutExtension(fileInfo.Name));
+				var newFiles = Directory.GetFiles(newFolder);
+
+				foreach (var newFile in newFiles)
+					File.Move(newFile, Path.Combine(fileInfo.Directory.FullName, new FileInfo(newFile).Name));
+
+				extractedFiles.Add(physicalTargetPath);
+			}
+		}
+
+		private static async Task UnluacDecompile(ModAction<UnluacDecompileAction> modAction, string tempFolder, List<string> decompiledFiles, Configuration config)
+		{
+			foreach (var file in modAction.action.TargetFiles)
+			{
+				var physicalTargetPath = ResolvePath(file, modAction.mod);
+				var fileInfo = new FileInfo(physicalTargetPath);
+
+				var targetPath = Path.Combine(tempFolder, $"{Path.GetFileNameWithoutExtension(fileInfo.Name)}_decomp{fileInfo.Extension}");
+
+				// Check if this has already been decompiled
+				if (decompiledFiles.Contains(physicalTargetPath))
+					continue;
+
+				// Decompile the file, and replace the file
+				await UnluacUtility.Decompile(physicalTargetPath, targetPath);
+				File.Move($"{physicalTargetPath}_decomp", physicalTargetPath, true);
+
+				decompiledFiles.Add(physicalTargetPath);
+			}
+		}
+
+		private static void MoveFile(ModAction<FileMoveAction> modAction, Configuration config)
+		{
+			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod);
+			var physicalDestinationPath = ResolvePath(modAction.action.DestinationPath, modAction.mod);
+
+			if (!IsReservedFile(physicalTargetPath, config) && !IsReservedFile(physicalDestinationPath, config))
+				File.Move(physicalTargetPath, physicalDestinationPath, false);
+			else
+				throw new ReservedFileModificationException("Cannot move a reserved file");
+		}
+
+		private static void ReplaceFile(ModAction<FileReplaceAction> modAction, Configuration config)
+		{
+			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod);
+			var physicalDestinationPath = ResolvePath(modAction.action.ReplacementFile, modAction.mod);
+
+			if (!IsReservedFile(physicalTargetPath, config) && !IsReservedFile(physicalDestinationPath, config))
+				File.Move(physicalTargetPath, physicalDestinationPath, true);
+			else
+				throw new ReservedFileModificationException("Cannot replace a reserved file");
+		}
+
+		private static void CopyFile(ModAction<FileCopyAction> modAction, Configuration config)
+		{
+			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod);
+			var physicalDestinationPath = ResolvePath(modAction.action.DestinationPath, modAction.mod);
+
+			File.Copy(physicalTargetPath, physicalDestinationPath, false);
+		}
+
+		private static void DeleteFile(ModAction<FileDeleteAction> modAction, Configuration config)
+		{
+			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod);
+
+			if (!IsReservedFile(physicalTargetPath, config))
+				File.Delete(physicalTargetPath);
+			else
+				throw new ReservedFileModificationException("Cannot delete a reserved file");
+		}
+
+		private static void WriteToFile(ModAction<FileWriteAction> modAction, FileWriterUtility fileWriter, Configuration config)
+		{
+			foreach (var content in modAction.action.Content)
+			{
+				var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod);
+				string filePath = null;
+
+				if (!string.IsNullOrEmpty(content.DataFilePath))
+					filePath = ResolvePath(content.DataFilePath, modAction.mod);
+
+				var dataToWrite = content.Text ?? File.ReadAllText(filePath);
+
+				if (!IsReservedFile(physicalTargetPath, config))
+				{
+					if (content.EndOffset.HasValue)
+						fileWriter.WriteToFileRange(filePath, dataToWrite, content.StartOffset, content.EndOffset.Value, false);
+					else
+						fileWriter.WriteToFile(physicalTargetPath, dataToWrite, content.StartOffset, !content.Replace, false);
+				}
+				else
+					throw new ReservedFileModificationException("Cannot write to a reserved file");
+			}
+		}
+
+		private static bool IsReservedFile(string path, Configuration config)
+		{
+			return path.StartsWith(config.SteamInstallationPath, StringComparison.InvariantCultureIgnoreCase) && new FileInfo(path).Extension == ".zip";
+		}
+
+		public static string ResolvePath(string path, GameModification mod)
+		{
+			if (string.IsNullOrEmpty(path))
+				return null;
+
+			if (path.StartsWith("~"))
+				return Path.Combine(mod.Config.ModCachePath, path.Substring(1, path.Length - 1));
+			else if (path.StartsWith("[GAME]"))
+				return Path.Combine(mod.Config.ModCachePath, path.Substring(6, path.Length - 6));
+
+			if (path.StartsWith("@"))
+				return Path.Combine(mod.Config.ModCachePath, path.Substring(1, path.Length - 1));
+			else if (path.StartsWith("[MOD]"))
+				return Path.Combine(mod.Config.ModCachePath, path.Substring(5, path.Length - 5));
+
+			throw new Exception("Supplied path must begin with the following: [GAME], [MOD], ~ or @");
 		}
 
 		private static async Task ExtractFiles(Configuration configuration, string tempFolder)
@@ -378,18 +605,18 @@ namespace InfinityModTool.Utilities
 			return !string.IsNullOrEmpty(modification.Parameters.GetValueOrDefault("ReplacementCharacter", null));
 		}
 
-		private static void AddPlayset(PlaysetModConfiguration config, string playsetListFile, Dictionary<string, List<FileWrite>> fileWrites)
+		private static void AddPlayset(PlaysetModConfiguration config, string playsetListFile, FileWriterUtility fileWriter)
 		{
 			var injectedCodeUI = $"        self:AddListButton(\"{config.Name}\")\r\n";
 			var injectedCodeAdd = $"    self:AddListButton(\"{config.Name}\")\r\n";
 			var injectedCodeOr = $" or t.id ~= \"{config.Name}\"";
 			var injectedCodeAnd = $" and t.id ~= \"{config.Name}\"";
 
-			FileWriterUtility.WriteToFile(playsetListFile, injectedCodeAnd, 0x00000BB3, true, fileWrites, false);
-			FileWriterUtility.WriteToFile(playsetListFile, injectedCodeOr, 0x00001115, true, fileWrites, false);
+			fileWriter.WriteToFile(playsetListFile, injectedCodeAnd, 0x00000BB3, true, false);
+			fileWriter.WriteToFile(playsetListFile, injectedCodeOr, 0x00001115, true, false);
 
-			FileWriterUtility.WriteToFile(playsetListFile, injectedCodeUI, 0x00002846, true, fileWrites, false);
-			FileWriterUtility.WriteToFile(playsetListFile, injectedCodeAdd, 0x000028FD, true, fileWrites, false);
+			fileWriter.WriteToFile(playsetListFile, injectedCodeUI, 0x00002846, true, false);
+			fileWriter.WriteToFile(playsetListFile, injectedCodeAdd, 0x000028FD, true, false);
 		}
 
 	}

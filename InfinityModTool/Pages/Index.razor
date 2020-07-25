@@ -23,7 +23,7 @@
 
 @if (alertConfig?.CanShow ?? false)
 {
-    <PopupAlert Type="@alertConfig.level" Title="@alertConfig.title" Message="@alertConfig.message" OnDismissed="() => alertConfig.Hide()"></PopupAlert>
+    <PopupAlert Type="@alertConfig.level" Title="@alertConfig.title" Message="@alertConfig.message" OnDismissed="async () => { alertConfig.Hide(); if (alertConfig.confirmAction != null) { await alertConfig.confirmAction(); } }"></PopupAlert>
 }
 
 @if (!string.IsNullOrEmpty(warningMessage))
@@ -64,6 +64,26 @@
             warningMessage = "Steam installation path has not been set, please set this via the settings tab";
 
         mods = modService.GetModsForCategory(category);
+        CheckForUnloadedMods();
+    }
+
+    void CheckForUnloadedMods()
+    {
+        // Don't show if we've already shown
+        if (modService.ModLoadWarningShown)
+            return;
+
+        var failedModLoads = modService.ModLoadResults.Where(r => new[] { Enums.ModLoadStatus.ConfigInvalid, Enums.ModLoadStatus.NoConfig, Enums.ModLoadStatus.UnspecifiedFailure, Enums.ModLoadStatus.UnsupportedVersion }.Contains(r.status));
+
+        if (failedModLoads.Count() > 0)
+        {
+            ShowAlertDialog(
+                title: "Mods Failed to Load",
+                message: $"The following mods failed to load: {string.Join(", ", failedModLoads.Select(r => $"{r.modPath} - {r.status}"))}",
+                level: AlertLevel.Warning,
+                onClick: async () => { modService.ModLoadWarningShown = true; }
+            );
+        }
     }
 
     void SelectMod(string modID)
@@ -101,15 +121,12 @@
 
     void ShowInstallConfirmationDialog()
     {
-        confirmConfig = new ConfirmationDialogConfig()
-        {
-            title = GetInstallMessage(),
-            message = "This will modify your Disney Infinity 3.0 game installation",
-            level = AlertLevel.Warning,
-            confirmAction = () => InstallUninstall(installContext)
-        };
-
-        confirmConfig.Show();
+        ShowConfirmDialog(
+            title: GetInstallMessage(),
+            message: "This will modify your Disney Infinity 3.0 game installation",
+            level: AlertLevel.Warning,
+            confirmAction: () => InstallUninstall(installContext)
+        );
     }
 
     void ShowReplaceConfirmationDialog()
@@ -125,25 +142,39 @@
         replaceConfig.Show();
     }
 
-    void ShowAlertDialog(string title, string message, AlertLevel level)
+    void ShowAlertDialog(string title, string message, AlertLevel level, Func<Task> onClick = null)
     {
         alertConfig = new AlertDialogConfig()
         {
             title = title,
             message = message,
-            level = level
+            level = level,
+            confirmAction = onClick
         };
 
         alertConfig.Show();
     }
 
-    async Task InstallUninstall(string selectedCharacterID, Data.ModInstallationData modification)
+    void ShowConfirmDialog(string title, string message, AlertLevel level, Func<Task> confirmAction)
     {
-        modification.Parameters.Add("ReplacementCharacter", selectedCharacterID);
-        await InstallUninstall(modification);
+        confirmConfig = new ConfirmationDialogConfig()
+        {
+            title = title,
+            message = message,
+            level = level,
+            confirmAction = confirmAction
+        };
+
+        confirmConfig.Show();
     }
 
-    async Task InstallUninstall(Data.ModInstallationData modification)
+    async Task InstallUninstall(string selectedCharacterID, Data.ModInstallationData modification, bool ignoreWarnings = false)
+    {
+        modification.Parameters.Add("ReplacementCharacter", selectedCharacterID);
+        await InstallUninstall(modification, ignoreWarnings);
+    }
+
+    async Task InstallUninstall(Data.ModInstallationData modification, bool ignoreWarnings = false)
     {
         showLoadingIcon = true;
 
@@ -156,19 +187,29 @@
 
         switch (installStatus.status)
         {
-            case ModUtility.InstallationStatus.Error:
+            case Enums.InstallationStatus.FatalError:
+            case Enums.InstallationStatus.RolledBackError:
                 ShowAlertDialog(
                     title: "Oops, something went wrong!",
                     message: "Something went wrong during mod installation. All mods have been uninstalled, and your game has been restored",
                     level: AlertLevel.Error
                 );
                 break;
-            case ModUtility.InstallationStatus.Conflict:
-                var conflictingMods = installStatus.conflicts.Select(m => modService.GetMod(m).DisplayName);
+            case Enums.InstallationStatus.UnresolvableConflict:
+                var conflictingMods = installStatus.conflicts.Select(m => m.mod.Config.DisplayName);
                 ShowAlertDialog(
                     title: "Mod conflict detected",
-                    message: $"The mod being installed conflicts with the following installed mods, and has not been installed: {string.Join(", ", conflictingMods)}",
+                    message: $"The mod being installed conflicts with the following installed mod{(conflictingMods.Count() > 0 ? "s" : "")}, and has not been installed: {string.Join(", ", conflictingMods)}",
                     level: AlertLevel.Error
+                );
+                break;
+            case Enums.InstallationStatus.ResolvableConflict:
+                var potentialIssues = installStatus.conflicts.Select(m => m.mod.Config.DisplayName);
+                ShowConfirmDialog(
+                    title: $"Potential conflict{(potentialIssues.Count() > 0 ? "s" : "")} detected",
+                    message: $"The mod being installed has potential conflicts with the following installed mod{(potentialIssues.Count() > 0 ? "s" : "")}: {string.Join(", ", potentialIssues)}\nInstall mod anyway?",
+                    level: AlertLevel.Warning,
+                    confirmAction: () => InstallUninstall(installContext, true)
                 );
                 break;
         }

@@ -26,15 +26,17 @@ namespace InfinityModTool.Utilities
 
 	public class FileWriterUtility
 	{
-		public static FileWrite WriteToFile(string filePath, string text, long memoryOffset, bool insert, Dictionary<string, List<FileWrite>> writeCache, bool ignoreWriteCache)
+		private Dictionary<string, List<FileWrite>> writeCache = new Dictionary<string, List<FileWrite>>();
+
+		public FileWrite WriteToFile(string filePath, string text, long memoryOffset, bool insert, bool ignoreWriteCache)
 		{
 			byte[] buffer = Encoding.ASCII.GetBytes(text);
-			return WriteToFile(filePath, buffer, memoryOffset, insert, writeCache, ignoreWriteCache);
+			return WriteToFile(filePath, buffer, memoryOffset, insert, ignoreWriteCache);
 		}
 
-		public static FileWrite WriteToFile(string filePath, byte[] buffer, long memoryOffset, bool insert, Dictionary<string, List<FileWrite>> writeCache, bool ignoreWriteCache)
+		public FileWrite WriteToFile(string filePath, byte[] buffer, long memoryOffset, bool insert, bool ignoreWriteCache)
 		{
-			var actualOffset = ignoreWriteCache ? memoryOffset : GetOffsetForFile(memoryOffset, filePath, writeCache);
+			var actualOffset = ignoreWriteCache ? memoryOffset : GetOffsetForFile(memoryOffset, filePath);
 
 			byte[] fileBytes = File.ReadAllBytes(filePath);
 			byte[] tempBuffer = new byte[insert ? fileBytes.Length + buffer.Length : fileBytes.Length];
@@ -52,16 +54,16 @@ namespace InfinityModTool.Utilities
 				Array.Copy(buffer, 0, tempBuffer, actualOffset, buffer.Length);
 			}
 
-			var writeInfo = InsertToWriteCache(filePath, memoryOffset, buffer.Length, insert ? buffer.Length : 0, writeCache);
+			var writeInfo = InsertToWriteCache(filePath, memoryOffset, buffer.Length, insert ? buffer.Length : 0);
 			File.WriteAllBytes(filePath, tempBuffer);
 
 			return writeInfo;
 		}
 
-		public static FileWrite WriteToFileRange(string filePath, string text, long startOffset, long endOffset, Dictionary<string, List<FileWrite>> writeCache, bool ignoreWriteCache)
+		public FileWrite WriteToFileRange(string filePath, string text, long startOffset, long endOffset, bool ignoreWriteCache)
 		{
-			var actualStartOffset = ignoreWriteCache ? startOffset : GetOffsetForFile(startOffset, filePath, writeCache);
-			var actualEndOffset = ignoreWriteCache ? endOffset : GetOffsetForFile(endOffset, filePath, writeCache);
+			var actualStartOffset = ignoreWriteCache ? startOffset : GetOffsetForFile(startOffset, filePath);
+			var actualEndOffset = ignoreWriteCache ? endOffset : GetOffsetForFile(endOffset, filePath);
 			var replaceRange = actualEndOffset - actualStartOffset;
 
 			byte[] fileBytes = File.ReadAllBytes(filePath);
@@ -73,14 +75,14 @@ namespace InfinityModTool.Utilities
 			Array.Copy(textBuffer, 0, tempBuffer, actualStartOffset, textBuffer.Length);
 			Array.Copy(fileBytes, actualEndOffset, tempBuffer, actualStartOffset + textBuffer.LongLength, fileBytes.LongLength - actualEndOffset);
 
-			var writeInfo = InsertToWriteCache(filePath, startOffset, text.Length, text.Length - replaceRange, writeCache);
+			var writeInfo = InsertToWriteCache(filePath, startOffset, text.Length, text.Length - replaceRange);
 			File.WriteAllBytes(filePath, tempBuffer);
 
 			return writeInfo;
 		}
 
 		// TODO: We need a nice way to deal with removal of text
-		private static FileWrite InsertToWriteCache(string filePath, long offset, long bytesWritten, long bytesAdded, Dictionary<string, List<FileWrite>> writeCache)
+		private FileWrite InsertToWriteCache(string filePath, long offset, long bytesWritten, long bytesAdded)
 		{
 			var writeInfo = new FileWrite(offset, bytesWritten, bytesAdded);
 
@@ -91,20 +93,7 @@ namespace InfinityModTool.Utilities
 			return writeInfo;
 		}
 
-		public static string CreateTempFolder()
-		{
-			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-			var tempDirectory = Path.Combine(executionPath, "Temp");
-
-			if (Directory.Exists(tempDirectory))
-				Directory.Delete(tempDirectory, true);
-
-			Directory.CreateDirectory(tempDirectory);
-
-			return tempDirectory;
-		}
-
-		private static long GetOffsetForFile(long memoryOffset, string file, Dictionary<string, List<FileWrite>> writeCache)
+		private long GetOffsetForFile(long memoryOffset, string file)
 		{
 			if (!writeCache.ContainsKey(file))
 				return memoryOffset;
