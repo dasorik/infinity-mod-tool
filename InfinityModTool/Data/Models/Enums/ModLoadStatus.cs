@@ -12,6 +12,7 @@ namespace InfinityModTool.Enums
 		NoConfig,
 		ConfigInvalid,
 		ExtensionInvalid,
-		UnsupportedVersion
+		UnsupportedVersion,
+		DuplicateID
 	}
 }

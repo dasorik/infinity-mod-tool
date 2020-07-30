@@ -33,12 +33,12 @@ namespace InfinityModTool.Data.Utilities
 
 		public class ModLoadResult
 		{
-			public readonly string modPath;
+			public readonly string modFileName;
 			public readonly ModLoadStatus status;
 
 			public ModLoadResult(string modPath, ModLoadStatus status)
 			{
-				this.modPath = modPath;
+				this.modFileName = modPath;
 				this.status = status;
 			}
 		}
@@ -52,6 +52,12 @@ namespace InfinityModTool.Data.Utilities
 			var idNames = Newtonsoft.Json.JsonConvert.DeserializeObject<IDNames>(fileData);
 
 			return idNames.CharacterIDs.Select(id => new ListOption(id.ID, id.DisplayName)).ToArray();
+		}
+
+		public static string GetModPath()
+		{
+			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+			return Path.Combine(executionPath, MOD_PATH);
 		}
 
 		public static BaseModConfiguration[] LoadMods(double currentVersion, List<ModLoadResult> allResults)
@@ -92,13 +98,18 @@ namespace InfinityModTool.Data.Utilities
 		private static ModLoadStatus TryLoadV1Mod(FileInfo fileInfo, ModPathInfo pathInfo, out BaseModConfiguration modData)
 		{
 			modData = null;
+			string zipFile = null;
 
 			try
 			{
+				zipFile = Path.ChangeExtension(fileInfo.FullName, ".zip");
+				File.Copy(fileInfo.FullName, zipFile);
+
 				if (fileInfo.Extension == ".mod")
 				{
 					var extractFolder = Path.Combine(pathInfo.extractBasePath, fileInfo.Name);
-					System.IO.Compression.ZipFile.ExtractToDirectory(fileInfo.FullName, extractFolder);
+
+					System.IO.Compression.ZipFile.ExtractToDirectory(zipFile, extractFolder);
 
 					var configPath = Path.Combine(extractFolder, "config.json");
 
@@ -135,6 +146,11 @@ namespace InfinityModTool.Data.Utilities
 			catch (Exception ex)
 			{
 				return ModLoadStatus.UnspecifiedFailure;
+			}
+			finally
+			{
+				if (!string.IsNullOrWhiteSpace(zipFile))
+					File.Delete(zipFile);
 			}
 		}
 

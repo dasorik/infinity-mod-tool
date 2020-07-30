@@ -1,8 +1,10 @@
-﻿using InfinityModTool.Data.InstallActions;
+﻿using InfinityModTool.Data;
+using InfinityModTool.Data.InstallActions;
 using InfinityModTool.Data.Modifications;
 using InfinityModTool.Enums;
 using InfinityModTool.Models;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
+using Microsoft.AspNetCore.Server.IIS.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,7 +16,13 @@ namespace InfinityModTool.Utilities
 {
 	public class ModCollisionTracker
 	{
+		Configuration config;
 		List<ModCollision> collisions = new List<ModCollision>();
+
+		public ModCollisionTracker(Configuration config)
+		{
+			this.config = config;
+		}
 
 		public ModCollision[] CheckForPotentialModCollisions(GameModification newMod, ModActionCollection modActions)
 		{
@@ -32,7 +40,7 @@ namespace InfinityModTool.Utilities
 				// Are we attempting to write to a deleted file?
 				AddModClash(oldModActions.fileDeleteActions, a => fileWrite.action.TargetFile == a.action.TargetFile, "Attempting to write to a file that is deleted by another mod");
 
-				// Are we attempting to write to a moved file?
+				// Are we attempting to write to a moved file, or the target destination?
 				AddModClash(oldModActions.fileMoveActions, a => fileWrite.action.TargetFile == a.action.TargetFile, "Attempting to write to a file that is moved by another mod");
 
 				// Are we attempting to write to a replaced file?
@@ -47,11 +55,17 @@ namespace InfinityModTool.Utilities
 				// Are we attempting to move a file that is moved elsewhere?
 				AddModClash(oldModActions.fileMoveActions, a => fileMove.action.TargetFile == a.action.TargetFile && fileMove.action.DestinationPath != a.action.DestinationPath, "Attempting to move a file that is moved elsewhere by another mod");
 
+				// Are we attempting to move a file to a destination moved to by another move?
+				AddModClash(oldModActions.fileMoveActions, a => fileMove.action.DestinationPath == a.action.DestinationPath, "Attempting to move a file to a destination that is moved to by another mod");
+
 				// Are we attempting to move a deleted file? (probably safe)
 				AddModWarning(oldModActions.fileDeleteActions, a => fileMove.action.TargetFile == a.action.TargetFile, "Attempting to move a file that is deleted by another mod");
 
-				// Are we attempting to write to a replaced file?
+				// Are we attempting to move to a replaced file?
 				AddModClash(oldModActions.fileReplaceActions, a => fileMove.action.TargetFile == a.action.TargetFile, "Attempting to move a file that is replaced by another mod");
+
+				// Are we attempting to move to a destination copied to by another mod?
+				AddModClash(oldModActions.fileCopyActions, a => fileMove.action.DestinationPath == a.action.DestinationPath && fileMove.action.TargetFile != a.action.TargetFile, "Attempting to move a file to a destination that is copied to by another mod (with different data)");
 			}
 
 			foreach (var fileReplace in newModActions.fileReplaceActions)
@@ -79,6 +93,15 @@ namespace InfinityModTool.Utilities
 
 				// Are we attempting to delete to a moved file? (probably a safe thing to do)
 				AddModWarning(oldModActions.fileMoveActions, a => fileDelete.action.TargetFile == a.action.TargetFile, "Attempting to delete a file that is moved by another mod");
+			}
+
+			foreach (var fileCopy in newModActions.fileCopyActions)
+			{
+				// Are we attempting to copy to a destination moved to by another mod
+				AddModClash(oldModActions.fileMoveActions, a => fileCopy.action.DestinationPath == a.action.DestinationPath && fileCopy.action.TargetFile != a.action.TargetFile, "Attempting to copy a file to a destination that is moved to by another mod (with different data)");
+
+				// Are we attempting to copy to a destination copied to by another mod
+				AddModClash(oldModActions.fileCopyActions, a => fileCopy.action.DestinationPath == a.action.DestinationPath && fileCopy.action.TargetFile != a.action.TargetFile, "Attempting to copy a file to a destination that is copied to by another mod (with different data)");
 			}
 
 			return collisions.ToArray();
@@ -137,8 +160,8 @@ namespace InfinityModTool.Utilities
 
 		private bool FilesAreDifferent(ModAction<FileReplaceAction> a1, ModAction<FileReplaceAction> a2)
 		{
-			var a1FilePath = ModUtility.ResolvePath(a1.action.TargetFile, a1.mod);
-			var a2FilePath = ModUtility.ResolvePath(a2.action.TargetFile, a2.mod);
+			var a1FilePath = ModUtility.ResolvePath(a1.action.TargetFile, a1.mod, config);
+			var a2FilePath = ModUtility.ResolvePath(a2.action.TargetFile, a2.mod, config);
 
 			string a1MD5 = MD5Utility.CalculateMD5Hash(a1FilePath);
 			string a2MD5 = MD5Utility.CalculateMD5Hash(a2FilePath);

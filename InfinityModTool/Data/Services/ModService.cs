@@ -3,11 +3,14 @@ using InfinityModTool.Data;
 using InfinityModTool.Data.Modifications;
 using InfinityModTool.Data.Utilities;
 using InfinityModTool.Enums;
+using InfinityModTool.Models;
 using InfinityModTool.Utilities;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Tewr.Blazor.FileReader;
 
 namespace InfinityModTool.Services
 {
@@ -42,6 +45,31 @@ namespace InfinityModTool.Services
 			this.AvailableMods = ModLoaderUtility.LoadMods(CurrentVersion, ModLoadResults);
 		}
 
+		public ModLoadStatus TryAddMod(string fileName, byte[] fileBytes)
+		{
+			var modInstallPath = Path.Combine(ModLoaderUtility.GetModPath(), fileName);
+
+			if (File.Exists(modInstallPath))
+				modInstallPath = FileWriterUtility.GetUniqueFilePath(modInstallPath);
+
+			var fileInfo = new FileInfo(modInstallPath);
+			File.WriteAllBytes(modInstallPath, fileBytes);
+
+			ReloadMods();
+
+			var result = ModLoadResults.First(r => r.modFileName == fileInfo.Name).status;
+			var success = result == ModLoadStatus.Success;
+
+			if (!success)
+			{
+				// If this mod failed to load, 
+				File.Delete(modInstallPath);
+				ReloadMods();
+			}
+
+			return result;
+		}
+
 		public IEnumerable<T> GetInstalledMods<T>()
 			where T : ModInstallationData
 		{
@@ -57,13 +85,19 @@ namespace InfinityModTool.Services
 		{
 			var modData = GetMod(modID);
 
-			switch (modData.ModCategory)
-			{
-				case "Character":
-					return (modData as CharacterModConfiguration).ReplaceCharacter ? "mod-replace.svg" : "mod-noreplace.svg";
-				default:
-					return null;
-			}
+			if (modData.ModCategory.Equals("Character", System.StringComparison.InvariantCultureIgnoreCase))
+				return "mod-type-character.svg";
+
+			if (modData.ModCategory.Equals("Playset", System.StringComparison.InvariantCultureIgnoreCase))
+				return "mod-type-character.svg";
+
+			if (modData.ModCategory.Equals("CostumeCoin", System.StringComparison.InvariantCultureIgnoreCase))
+				return "mod-type-character.svg";
+
+			if (modData.ModCategory.Equals("PowerDisc", System.StringComparison.InvariantCultureIgnoreCase))
+				return "mod-type-character.svg";
+
+			return string.Empty;
 		}
 
 		public ListOption[] GetAvailableReplacementCharacters(string idName)
@@ -94,12 +128,12 @@ namespace InfinityModTool.Services
 			return AvailableMods.FirstOrDefault(m => m.ModID == modID && m is T) as T;
 		}
 
-		public async Task<ModUtility.InstallInfo> InstallCharacterMod(ModInstallationData modToInstall)
+		public async Task<InstallInfo> InstallCharacterMod(ModInstallationData modToInstall)
 		{
 			return await UpdateModConfiguration(modToInstall, true);
 		}
 
-		public async Task<ModUtility.InstallInfo> UninstallMod(string idName)
+		public async Task<InstallInfo> UninstallMod(string idName)
 		{
 			var modToRemove = Settings.InstalledMods.FirstOrDefault(m => m.ModID == idName);
 			return await UpdateModConfiguration(modToRemove, false);
@@ -110,7 +144,7 @@ namespace InfinityModTool.Services
 			SettingsUtility.SaveSettings(Settings, USER_SETTINGS);
 		}
 
-		private async Task<ModUtility.InstallInfo> UpdateModConfiguration(ModInstallationData mod, bool install)
+		private async Task<InstallInfo> UpdateModConfiguration(ModInstallationData mod, bool install)
 		{
 			if (!CheckSteamPathSettings())
 				throw new System.Exception("Cannot apply mods if the steam installation path has not been set");
@@ -128,9 +162,10 @@ namespace InfinityModTool.Services
 				Parameters = i.Parameters
 			}).ToArray();
 
-			var result = await ModUtility.ApplyChanges(configuration, gameModifications, false);
+			var modUtility = new ModUtility(configuration);
+			var result = await modUtility.ApplyChanges(gameModifications, false);
 
-			switch (result.status)
+			switch (result)
 			{
 				case InstallationStatus.Success:
 					Settings.InstalledMods = allMods;
@@ -141,9 +176,12 @@ namespace InfinityModTool.Services
 					break;
 			}
 
+			Settings.FileModifications.Clear();
+			Settings.FileModifications.AddRange(modUtility.modifications);
+
 			SaveSettings();
 
-			return result;
+			return new InstallInfo(result, modUtility.conflicts);
 		}
 
 		private bool CheckSteamPathSettings()

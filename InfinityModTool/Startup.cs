@@ -13,6 +13,7 @@ using ElectronNET.API;
 using System.Threading;
 using ElectronNET.API.Entities;
 using InfinityModTool.Services;
+using Tewr.Blazor.FileReader;
 
 namespace InfinityModTool
 {
@@ -33,6 +34,7 @@ namespace InfinityModTool
 			services.AddServerSideBlazor();
 			services.AddSingleton<ModService>();
 			services.AddSingleton<ToolService>();
+			services.AddFileReaderService();
 		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

@@ -1,7 +1,9 @@
 ﻿@page "/"
 @page "/mods"
 @page "/mods/{category}"
+@using System.IO;
 @inject InfinityModTool.Services.ModService modService;
+@inject Tewr.Blazor.FileReader.IFileReaderService fileReaderService;
 
 @using InfinityModTool.Utilities;
 
@@ -31,18 +33,20 @@
     <BannerAlert Type="Warning" Message="@warningMessage"></BannerAlert>
 }
 
-@if (mods.Count() == 0)
-{
-    <h1 class="missing">No mod packs could be found</h1>
-}
-
 @foreach (var mod in mods)
 {
     <CharacterButton IDName="@mod.ModID" DisplayName="@mod.DisplayName" DisplayImage="@mod.DisplayImageBase64" DisplayColor="@mod.DisplayColor" Icon="@modService.GetModIcon(mod.ModID)" Installed="@modService.IsModInstalled(mod.ModID)" OnClick="@SelectMod"></CharacterButton>
 }
 
+<label class="character-button no-drop-shadow">
+    <input type="file" @ref=inputTypeFileElement @onchange="ReadFile" />
+    <img src="img/add-new-mod.svg" class="new"/>
+</label>
+
 @code {
     [Parameter] public string category { get; set; }
+
+    ElementReference inputTypeFileElement = new ElementReference();
 
     bool showLoadingIcon = false;
     ConfirmationDialogConfig confirmConfig = null;
@@ -67,6 +71,70 @@
         CheckForUnloadedMods();
     }
 
+    async Task ReadFile()
+    {
+        showLoadingIcon = true;
+
+        Tewr.Blazor.FileReader.IFileReference fileReference = null;
+        foreach (var file in await fileReaderService.CreateReference(inputTypeFileElement).EnumerateFilesAsync())
+        {
+            fileReference = file;
+            break;
+        }
+
+        if (fileReference == null)
+            return;
+
+        byte[] fileBytes;
+        string fileName;
+
+        using (MemoryStream memoryStream = await fileReference.CreateMemoryStreamAsync(4096))
+        {
+            fileBytes = memoryStream.ToArray();
+            fileName = (await fileReference.ReadFileInfoAsync()).Name;
+        }
+
+        var result = modService.TryAddMod(fileName, fileBytes);
+        string errorMessage = null;
+
+        switch (result)
+        {
+            case Enums.ModLoadStatus.ConfigInvalid:
+                errorMessage = "The selected mod is not configured properly. Please check the config.json file";
+                break;
+            case Enums.ModLoadStatus.DuplicateID:
+                errorMessage = "A mod with the same ID has already been added";
+                break;
+            case Enums.ModLoadStatus.ExtensionInvalid:
+                errorMessage = "The selected mod is not a mod file";
+                break;
+            case Enums.ModLoadStatus.NoConfig:
+                errorMessage = "No config could be found on the selected mod";
+                break;
+            case Enums.ModLoadStatus.UnspecifiedFailure:
+                errorMessage = "An error occuring trying to load the selected mod";
+                break;
+            case Enums.ModLoadStatus.UnsupportedVersion:
+                errorMessage = "The version number of this mod is not supported by this version of the mod installer";
+                break;
+        }
+
+        if (!string.IsNullOrEmpty(errorMessage))
+        {
+            ShowAlertDialog(
+                title: "Unable to load mod",
+                message: errorMessage,
+                level: AlertLevel.Error
+            );
+        }
+
+        // Clear this
+        inputTypeFileElement = new ElementReference();
+        showLoadingIcon = false;
+
+        mods = modService.GetModsForCategory(category); // We need to show the new list of mods
+    }
+
     void CheckForUnloadedMods()
     {
         // Don't show if we've already shown
@@ -79,7 +147,7 @@
         {
             ShowAlertDialog(
                 title: "Mods Failed to Load",
-                message: $"The following mods failed to load: {string.Join(", ", failedModLoads.Select(r => $"{r.modPath} - {r.status}"))}",
+                message: $"The following mods failed to load: {string.Join(", ", failedModLoads.Select(r => $"{r.modFileName} - {r.status}"))}",
                 level: AlertLevel.Warning,
                 onClick: async () => { modService.ModLoadWarningShown = true; }
             );
@@ -178,7 +246,7 @@
     {
         showLoadingIcon = true;
 
-        ModUtility.InstallInfo installStatus;
+        InfinityModTool.Models.InstallInfo installStatus;
 
         if (install)
             installStatus = await modService.InstallCharacterMod(modification);

@@ -111,5 +111,27 @@ namespace InfinityModTool.Utilities
 
 			return newMemoryOffset + memoryOffset;
 		}
+
+		public static string GetUniqueFilePath(string path)
+		{
+			if (!File.Exists(path))
+				return path;
+
+			var fileInfo = new FileInfo(path);
+			var fileName = Path.GetFileNameWithoutExtension(path);
+			var directory = fileInfo.DirectoryName;
+			var files = new HashSet<string>(Directory.GetFiles(directory));
+
+			var originalPath = path;
+			int index = 1;
+
+			do
+			{
+				path = Path.Combine(directory, $"{fileName} ({index}){fileInfo.Extension}");
+			}
+			while (files.Contains(path));
+
+			return path;
+		}
 	}
 }

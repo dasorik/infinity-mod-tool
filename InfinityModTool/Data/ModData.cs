@@ -1,4 +1,5 @@
-﻿using System;
+﻿using InfinityModTool.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,5 +18,6 @@ namespace InfinityModTool.Data
 		public string SteamInstallationPath;
 		public bool ModdingToolsEnabled;
 		public List<ModInstallationData> InstalledMods = new List<ModInstallationData>();
+		public readonly List<FileModification> FileModifications = new List<FileModification>();
 	}
 }
