@@ -36,24 +36,24 @@
             </NavLink>
         </li>
         <li class="nav-item px-3">
-            <NavLink class="nav-link" href="Settings">
+            <NavLink class="nav-link" href="Settings" Match="NavLinkMatch.All">
                 <span class="nav-icon gear" aria-hidden="true"></span> Settings
             </NavLink>
         </li>
         <li class="nav-item px-3">
-            <NavLink class="nav-link" href="Logs">
-                <span class="nav-icon gear" aria-hidden="true"></span> Logs
+            <NavLink class="nav-link" href="Logs" Match="NavLinkMatch.All">
+                <span class="nav-icon logs" aria-hidden="true"></span> Logs
             </NavLink>
         </li>
 
-        @if (modService.Settings.ModdingToolsEnabled)
+        @*@if (modService.Settings.ModdingToolsEnabled)
         {
             <li class="nav-item px-3">
                 <NavLink class="nav-link" href="Tools">
                     <span class="nav-icon gear" aria-hidden="true"></span> Modding Tools
                 </NavLink>
             </li>
-        }
+        }*@
     </ul>
 </div>
 

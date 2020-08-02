@@ -48,7 +48,7 @@ app {
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, #0f4c99 0%, #ddeafc 70%);
+    background-color: #0f4c99;
 }
 
     .sidebar .top-row {
@@ -215,6 +215,10 @@ app {
 
 .nav-icon.costumecoin {
     background-image: url('../img/mod-type-costimecoin.svg')
+}
+
+.nav-icon.logs {
+    background-image: url('../img/icon-logs.svg')
 }
 
 .settings-container {

@@ -11,6 +11,7 @@ namespace InfinityModTool.Data
 		public double Version;
 		public string ModID;
 		public string ModCategory;
+		public string Description;
 		public string DisplayImage;
 		public string DisplayColor;
 		public string DisplayName;
