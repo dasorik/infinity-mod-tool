@@ -27,7 +27,7 @@ namespace InfinityModTool
             ModInstallAction item = null;
             if (actionType.Equals("MoveFile", StringComparison.InvariantCultureIgnoreCase))
                 item = new FileMoveAction();
-            else if (actionType.Equals("DeleteFile", StringComparison.InvariantCultureIgnoreCase))
+            else if (actionType.Equals("DeleteFiles", StringComparison.InvariantCultureIgnoreCase))
                 item = new FileDeleteAction();
             else if (actionType.Equals("ReplaceFile", StringComparison.InvariantCultureIgnoreCase))
                 item = new FileReplaceAction();

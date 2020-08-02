@@ -7,6 +7,6 @@ namespace InfinityModTool.Data.InstallActions
 {
 	public class FileDeleteAction : ModInstallAction
 	{
-		public string TargetFile;
+		public string[] TargetFiles;
 	}
 }

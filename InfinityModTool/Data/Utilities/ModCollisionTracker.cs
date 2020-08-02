@@ -38,7 +38,7 @@ namespace InfinityModTool.Utilities
 				AddModClash(oldModActions.fileWriteActions, a => CheckForFileWriteCollisions(fileWrite, a), "A mod attempted to write content to a file at a position that is deleted/overriden by another");
 
 				// Are we attempting to write to a deleted file?
-				AddModClash(oldModActions.fileDeleteActions, a => fileWrite.action.TargetFile == a.action.TargetFile, "Attempting to write to a file that is deleted by another mod");
+				AddModClash(oldModActions.fileDeleteActions, a => a.action.TargetFiles.Contains(fileWrite.action.TargetFile), "Attempting to write to a file that is deleted by another mod");
 
 				// Are we attempting to write to a moved file, or the target destination?
 				AddModClash(oldModActions.fileMoveActions, a => fileWrite.action.TargetFile == a.action.TargetFile, "Attempting to write to a file that is moved by another mod");
@@ -59,7 +59,7 @@ namespace InfinityModTool.Utilities
 				AddModClash(oldModActions.fileMoveActions, a => fileMove.action.DestinationPath == a.action.DestinationPath, "Attempting to move a file to a destination that is moved to by another mod");
 
 				// Are we attempting to move a deleted file? (probably safe)
-				AddModWarning(oldModActions.fileDeleteActions, a => fileMove.action.TargetFile == a.action.TargetFile, "Attempting to move a file that is deleted by another mod");
+				AddModWarning(oldModActions.fileDeleteActions, a => a.action.TargetFiles.Contains(fileMove.action.TargetFile), "Attempting to move a file that is deleted by another mod");
 
 				// Are we attempting to move to a replaced file?
 				AddModClash(oldModActions.fileReplaceActions, a => fileMove.action.TargetFile == a.action.TargetFile, "Attempting to move a file that is replaced by another mod");
@@ -74,7 +74,7 @@ namespace InfinityModTool.Utilities
 				AddModClash(oldModActions.fileWriteActions, a => fileReplace.action.TargetFile == a.action.TargetFile, "Attempting to replace a file that is written to by another mod");
 
 				// Are we attempting to replace a deleted file?
-				AddModClash(oldModActions.fileDeleteActions, a => fileReplace.action.TargetFile == a.action.TargetFile, "Attempting to replace a file that is deleted by another mod");
+				AddModClash(oldModActions.fileDeleteActions, a => a.action.TargetFiles.Contains(fileReplace.action.TargetFile), "Attempting to replace a file that is deleted by another mod");
 
 				// Are we attempting to replace to a moved file?
 				AddModClash(oldModActions.fileMoveActions, a => fileReplace.action.TargetFile == a.action.TargetFile, "Attempting to replace a file that is moved by another mod");
@@ -86,13 +86,13 @@ namespace InfinityModTool.Utilities
 			foreach (var fileDelete in newModActions.fileDeleteActions)
 			{
 				// Are we attempting to delete to a writen to file?
-				AddModClash(oldModActions.fileWriteActions, a => fileDelete.action.TargetFile == a.action.TargetFile, "Attempting to delete a file that is written to by another mod");
+				AddModClash(oldModActions.fileWriteActions, a => fileDelete.action.TargetFiles.Contains(a.action.TargetFile), "Attempting to delete a file that is written to by another mod");
 
 				// Are we attempting to delete a file that is moved elsewhere?
-				AddModClash(oldModActions.fileReplaceActions, a => fileDelete.action.TargetFile == a.action.TargetFile, "Attempting to delete a file that is replaced by another mod");
+				AddModClash(oldModActions.fileReplaceActions, a => fileDelete.action.TargetFiles.Contains(a.action.TargetFile), "Attempting to delete a file that is replaced by another mod");
 
 				// Are we attempting to delete to a moved file? (probably a safe thing to do)
-				AddModWarning(oldModActions.fileMoveActions, a => fileDelete.action.TargetFile == a.action.TargetFile, "Attempting to delete a file that is moved by another mod");
+				AddModWarning(oldModActions.fileMoveActions, a => fileDelete.action.TargetFiles.Contains(a.action.TargetFile), "Attempting to delete a file that is moved by another mod");
 			}
 
 			foreach (var fileCopy in newModActions.fileCopyActions)

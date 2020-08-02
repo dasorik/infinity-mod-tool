@@ -140,7 +140,7 @@ namespace InfinityModTool.Utilities
 				extractActions.AddRange(installActions.Where(a => a.Action.SafeEquals("QuickBMSExtract", ignoreCase: true)).Select(a => new ModAction<QuickBMSExtractAction>(mod, a as QuickBMSExtractAction)));
 				decompileActions.AddRange(installActions.Where(a => a.Action.SafeEquals("UnluacDecompile", ignoreCase: true)).Select(a => new ModAction<UnluacDecompileAction>(mod, a as UnluacDecompileAction)));
 				fileMoveActions.AddRange(installActions.Where(a => a.Action.SafeEquals("MoveFile", ignoreCase: true)).Select(a => new ModAction<FileMoveAction>(mod, a as FileMoveAction)));
-				fileDeleteActions.AddRange(installActions.Where(a => a.Action.SafeEquals("DeleteFile", ignoreCase: true)).Select(a => new ModAction<FileDeleteAction>(mod, a as FileDeleteAction)));
+				fileDeleteActions.AddRange(installActions.Where(a => a.Action.SafeEquals("DeleteFiles", ignoreCase: true)).Select(a => new ModAction<FileDeleteAction>(mod, a as FileDeleteAction)));
 				fileWriteActions.AddRange(installActions.Where(a => a.Action.SafeEquals("WriteToFile", ignoreCase: true)).Select(a => new ModAction<FileWriteAction>(mod, a as FileWriteAction)));
 				fileReplaceActions.AddRange(installActions.Where(a => a.Action.SafeEquals("ReplaceFile", ignoreCase: true)).Select(a => new ModAction<FileReplaceAction>(mod, a as FileReplaceAction)));
 				fileCopyActions.AddRange(installActions.Where(a => a.Action.SafeEquals("CopyFile", ignoreCase: true)).Select(a => new ModAction<FileCopyAction>(mod, a as FileCopyAction)));
@@ -259,12 +259,15 @@ namespace InfinityModTool.Utilities
 
 		private void DeleteFile(ModAction<FileDeleteAction> modAction)
 		{
-			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod, configuration);
+			foreach (var file in modAction.action.TargetFiles)
+			{
+				var physicalTargetPath = ResolvePath(file, modAction.mod, configuration);
 
-			if (!File.Exists(physicalTargetPath))
-				throw new Exception($"Unable to find target path: {physicalTargetPath}");
+				if (!File.Exists(physicalTargetPath))
+					throw new Exception($"Unable to find target path: {physicalTargetPath}");
 
-			DeleteFile_Internal(physicalTargetPath);
+				DeleteFile_Internal(physicalTargetPath);
+			}
 		}
 
 		private void WriteToFile(ModAction<FileWriteAction> modAction, FileWriterUtility fileWriter)
@@ -363,15 +366,16 @@ namespace InfinityModTool.Utilities
 
 		private void BackupFile(string path)
 		{
-			string relativePath = path.Substring(configuration.SteamInstallationPath.Length);
+			string relativePath = path.Substring(configuration.SteamInstallationPath.Length).Trim('\\').Trim('.');
 			string backupPath = Path.Combine(Global.APP_DATA_FOLDER, "Backup", relativePath);
 
+			Directory.CreateDirectory(new FileInfo(backupPath).DirectoryName);
 			File.Copy(path, backupPath, true);
 		}
 
 		private string GetBackupFilePath(string path)
 		{
-			string relativePath = path.Substring(configuration.SteamInstallationPath.Length);
+			string relativePath = path.Substring(configuration.SteamInstallationPath.Length).Trim('\\').Trim('.');
 			string backupPath = Path.Combine(Global.APP_DATA_FOLDER, "Backup", relativePath);
 
 			return backupPath;
@@ -430,10 +434,10 @@ namespace InfinityModTool.Utilities
 
 			foreach (var file in allBackupFiles)
 			{
-				var relativePath = file.Substring(backupPath.Length);
+				var relativePath = file.Substring(backupPath.Length).Trim('\\').Trim('/');
 				var gamePath = Path.Combine(configuration.SteamInstallationPath, relativePath);
 
-				File.Copy(file, gamePath);
+				File.Copy(file, gamePath, true);
 			}
 
 			// Remove all modifications

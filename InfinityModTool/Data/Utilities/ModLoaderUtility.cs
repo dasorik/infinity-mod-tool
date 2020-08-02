@@ -195,7 +195,7 @@ namespace InfinityModTool.Data.Utilities
 
 		static bool CheckFileDeleteAction(FileDeleteAction action)
 		{
-			return !string.IsNullOrWhiteSpace(action.TargetFile);
+			return action.TargetFiles.All(s => !string.IsNullOrWhiteSpace(s));
 		}
 
 		static bool CheckFileReplaceAction(FileReplaceAction action)

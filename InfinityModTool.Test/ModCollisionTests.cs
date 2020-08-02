@@ -44,8 +44,8 @@ namespace InfinityModTool.Test
 				{
 					new FileDeleteAction()
 					{
-						Action = "DeleteFile",
-						TargetFile = "[Game]/presentation/exampleFile.lua"
+						Action = "DeleteFiles",
+						TargetFiles = new[] { "[Game]/presentation/exampleFile.lua" }
 					}
 				}
 			}
