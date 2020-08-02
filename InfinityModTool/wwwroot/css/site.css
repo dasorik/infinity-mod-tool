@@ -499,3 +499,17 @@ h1.missing {
     .log-textarea span.warning {
         color: orange;
     }
+
+.prerelease-banner {
+    position: fixed;
+    z-index: 99;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+    height: 30px;
+    font-size: 1.1em;
+    color: orangered;
+    text-align: center;
+    vertical-align: middle;
+    background-color: rgba(255, 128, 72, 0.29);
+}
