@@ -35,11 +35,13 @@ namespace InfinityModTool.Data.Utilities
 		{
 			public readonly string modFileName;
 			public readonly ModLoadStatus status;
+			public readonly IEnumerable<string> loadErrors;
 
-			public ModLoadResult(string modPath, ModLoadStatus status)
+			public ModLoadResult(string modPath, ModLoadStatus status, IEnumerable<string> loadErrors = null)
 			{
 				this.modFileName = modPath;
 				this.status = status;
+				this.loadErrors = loadErrors ?? new List<string>();
 			}
 		}
 
@@ -83,19 +85,20 @@ namespace InfinityModTool.Data.Utilities
 
 			foreach (var file in Directory.GetFiles(modPath))
 			{
+				var errors = new List<string>();
 				var fileInfo = new FileInfo(file);
-				var result = TryLoadV1Mod(fileInfo, pathInfo, out var modData);
+				var result = TryLoadV1Mod(fileInfo, pathInfo, out var modData, errors);
 
 				if (result == ModLoadStatus.Success)
 					mods.Add(modData);
 
-				allResults.Add(new ModLoadResult(fileInfo.Name, result));
+				allResults.Add(new ModLoadResult(fileInfo.Name, result, errors));
 			}
 
 			return mods.ToArray();
 		}
 
-		private static ModLoadStatus TryLoadV1Mod(FileInfo fileInfo, ModPathInfo pathInfo, out BaseModConfiguration modData)
+		private static ModLoadStatus TryLoadV1Mod(FileInfo fileInfo, ModPathInfo pathInfo, out BaseModConfiguration modData, List<string> loadErrors)
 		{
 			modData = null;
 			string zipFile = null;
@@ -134,7 +137,7 @@ namespace InfinityModTool.Data.Utilities
 					var imageBytes = File.ReadAllBytes(imageFileInfo.FullName);
 					modData.DisplayImageBase64 = $"data:image/{imageFileInfo.Extension};base64," + Convert.ToBase64String(imageBytes);
 
-					var configValid = CheckModConfigurationIsValid(modData);
+					var configValid = CheckModConfigurationIsValid(modData, loadErrors);
 
 					return configValid ? ModLoadStatus.Success : ModLoadStatus.ConfigInvalid;
 				}
@@ -154,7 +157,7 @@ namespace InfinityModTool.Data.Utilities
 			}
 		}
 
-		static bool CheckModConfigurationIsValid(BaseModConfiguration configuration)
+		static bool CheckModConfigurationIsValid(BaseModConfiguration configuration, List<string> loadErrors)
 		{
 			bool result = true;
 
@@ -165,68 +168,147 @@ namespace InfinityModTool.Data.Utilities
 			foreach (var action in configuration.InstallActions)
 			{
 				if (action is FileMoveAction)
-					result &= CheckFileMovAction(action as FileMoveAction);
+					result &= CheckFileMoveAction(action as FileMoveAction, loadErrors);
 				else if (action is FileCopyAction)
-					result &= CheckFileCopyAction(action as FileCopyAction);
+					result &= CheckFileCopyAction(action as FileCopyAction, loadErrors);
 				else if (action is FileDeleteAction)
-					result &= CheckFileDeleteAction(action as FileDeleteAction);
+					result &= CheckFileDeleteAction(action as FileDeleteAction, loadErrors);
 				else if (action is FileReplaceAction)
-					result &= CheckFileReplaceAction(action as FileReplaceAction);
+					result &= CheckFileReplaceAction(action as FileReplaceAction, loadErrors);
 				else if (action is FileWriteAction)
-					result &= CheckFileWriteAction(action as FileWriteAction);
+					result &= CheckFileWriteAction(action as FileWriteAction, loadErrors);
 				else if (action is QuickBMSExtractAction)
-					result &= CheckQuickBMSExtractAction(action as QuickBMSExtractAction);
+					result &= CheckQuickBMSExtractAction(action as QuickBMSExtractAction, loadErrors);
 				else if (action is UnluacDecompileAction)
-					result &= CheckUnluacDecompileAction(action as UnluacDecompileAction);
+					result &= CheckUnluacDecompileAction(action as UnluacDecompileAction, loadErrors);
 			}
 
 			return result;
 		}
 
-		static bool CheckFileMovAction(FileMoveAction action)
+		static bool CheckFileMoveAction(FileMoveAction action, List<string> loadErrors)
 		{
+			// Files can only be moved into the game folder
+			if (!ValidGameFilePath(action.DestinationPath))
+			{
+				loadErrors.Add($"FileMove - {nameof(action.DestinationPath)}: Provided path must be in the [GAME] folder");
+				return false;
+			}
+
+			// Files can only be moved from the game folder
+			if (!ValidGameFilePath(action.TargetFile))
+			{
+				loadErrors.Add($"FileMove - {nameof(action.TargetFile)}: Provided path must be in the [GAME] folder");
+				return false;
+			}
+
 			return !string.IsNullOrWhiteSpace(action.TargetFile) && !string.IsNullOrWhiteSpace(action.DestinationPath);
 		}
 
-		static bool CheckFileCopyAction(FileCopyAction action)
+		static bool CheckFileCopyAction(FileCopyAction action, List<string> loadErrors)
 		{
+			// Files can only be copied into the game folder
+			if (!ValidGameFilePath(action.DestinationPath))
+			{
+				loadErrors.Add($"FileCopy - {nameof(action.DestinationPath)}: Provided path must be in the [GAME] folder");
+				return false;
+			}
+
+			// Target file can be either in game or mod path
+			if (!ValidFilePath(action.TargetFile))
+			{
+				loadErrors.Add($"FileCopy - {nameof(action.TargetFile)}: Provided path must be in the [GAME] or [MOD] folder");
+				return false;
+			}
+
 			return !string.IsNullOrWhiteSpace(action.TargetFile) && !string.IsNullOrWhiteSpace(action.DestinationPath);
 		}
 
-		static bool CheckFileDeleteAction(FileDeleteAction action)
+		static bool CheckFileDeleteAction(FileDeleteAction action, List<string> loadErrors)
 		{
+			// Can only delete files in the game path
+			if (!action.TargetFiles.All(f => ValidGameFilePath(f)))
+			{
+				loadErrors.Add($"FileDelete - {nameof(action.TargetFiles)}: Provided path must be in the [GAME] folder");
+				return false;
+			}
+
 			return action.TargetFiles.All(s => !string.IsNullOrWhiteSpace(s));
 		}
 
-		static bool CheckFileReplaceAction(FileReplaceAction action)
+		static bool CheckFileReplaceAction(FileReplaceAction action, List<string> loadErrors)
 		{
+			// The replacement file MUST be from the mods folder
+			if (!ValidModFilePath(action.ReplacementFile))
+			{
+				loadErrors.Add($"FileReplace - {nameof(action.ReplacementFile)}: Provided path must be in the [MOD] folder");
+				return false;
+			}
+
+			// Target file can be either in game or mod path
+			if (!ValidFilePath(action.TargetFile))
+			{
+				loadErrors.Add($"FileReplace - {nameof(action.TargetFile)}: Provided path must be in the [GAME] folder");
+				return false;
+			}
+
 			return !string.IsNullOrWhiteSpace(action.TargetFile) && !string.IsNullOrWhiteSpace(action.ReplacementFile);
 		}
 
-		static bool CheckFileWriteAction(FileWriteAction action)
+		static bool CheckFileWriteAction(FileWriteAction action, List<string> loadErrors)
 		{
-			if (string.IsNullOrWhiteSpace(action.TargetFile) || action.Content is null)
+			if (action.Content is null)
+			{
+				loadErrors.Add($"FileWrite - {nameof(action.Content)}: No items provided in 'Content' list");
 				return false;
+			}
+
+			// Can only modify files in the game path
+			if (!ValidGameFilePath(action.TargetFile))
+			{
+				loadErrors.Add($"FileWrite - {nameof(action.TargetFile)}: Provided path must be in the [GAME] folder");
+				return false;
+			}
 
 			foreach (var content in action.Content)
 			{
 				if (!string.IsNullOrWhiteSpace(content.DataFilePath) && !string.IsNullOrWhiteSpace(content.Text))
+				{
+					loadErrors.Add($"FileWrite - {nameof(content.DataFilePath)}/{nameof(content.Text)}: File write action must provide either 'Text' or 'DataFilePath' properties");
 					return false;
+				}
 
 				if (content.Replace && !content.EndOffset.HasValue)
+				{
+					loadErrors.Add($"FileWrite - {nameof(content.Replace)}: File writes with 'Replace' enabled must provide an 'EndOffset' property");
 					return false;
+				}
 			}
 
 			return true;
 		}
 
-		static bool CheckQuickBMSExtractAction(QuickBMSExtractAction action)
+		static bool CheckQuickBMSExtractAction(QuickBMSExtractAction action, List<string> loadErrors)
 		{
+			// Can only modify files in the game path
+			if (!action.TargetFiles.All(f => ValidGameFilePath(f)))
+			{
+				loadErrors.Add($"QuickBMSExtract - {nameof(action.TargetFiles)}: All provided paths for QuickBMS extraction must be in the [GAME] folder");
+				return false;
+			}
+
 			return action.TargetFiles != null;
 		}
 
-		static bool CheckUnluacDecompileAction(UnluacDecompileAction action)
+		static bool CheckUnluacDecompileAction(UnluacDecompileAction action, List<string> loadErrors)
 		{
+			// Can only modify files in the game path
+			if (!action.TargetFiles.All(f => ValidGameFilePath(f)))
+			{
+				loadErrors.Add($"UnluacDecompile - {nameof(action.TargetFiles)}: All provided paths for Unluac decompile must be in the [GAME] folder");
+				return false;
+			}
+
 			return action.TargetFiles != null;
 		}
 
@@ -288,6 +370,24 @@ namespace InfinityModTool.Data.Utilities
 				Directory.Delete(path, true);
 
 			Directory.CreateDirectory(path);
+		}
+
+		static bool ValidFilePath(string path)
+		{
+			if (string.IsNullOrEmpty(path))
+				return false;
+
+			return ValidModFilePath(path) || ValidGameFilePath(path);
+		}
+
+		static bool ValidModFilePath(string path)
+		{
+			return path.StartsWith("[MOD]", StringComparison.InvariantCultureIgnoreCase);
+		}
+
+		static bool ValidGameFilePath(string path)
+		{
+			return path.StartsWith("[GAME]", StringComparison.InvariantCultureIgnoreCase);
 		}
 	}
 }

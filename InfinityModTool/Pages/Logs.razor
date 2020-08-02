@@ -1,0 +1,29 @@
+﻿@page "/Logs"
+
+<h1>Logs</h1>
+
+<hr />
+
+<div class="log-textarea">
+@foreach(var log in InfinityModTool.Utilities.Logging.GetLogs())
+{
+    <span class="@GetLogSeverityClass(log.severity)">[@log.date.ToString("dd/MM/yyyy hh:sstt")] - @log.message</span>
+}
+</div>
+
+@code {
+
+    public string GetLogSeverityClass(Microsoft.CodeAnalysis.DiagnosticSeverity severity)
+    {
+        switch (severity)
+        {
+            case Microsoft.CodeAnalysis.DiagnosticSeverity.Warning:
+                return "warning";
+            case Microsoft.CodeAnalysis.DiagnosticSeverity.Error:
+                return "error";
+        }
+
+        return string.Empty;
+    }
+
+}

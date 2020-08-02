@@ -100,6 +100,8 @@ namespace InfinityModTool.Utilities
 			}
 			catch (Exception ex)
 			{
+				Logging.LogMessage(ex.ToString(), Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
+
 				Directory.Delete(tempFolder, true);
 
 				if (reverting)
@@ -405,17 +407,13 @@ namespace InfinityModTool.Utilities
 			if (string.IsNullOrEmpty(path))
 				return null;
 
-			if (path.StartsWith("~"))
-				return Path.Combine(config.SteamInstallationPath, path.Substring(1, path.Length - 1).TrimStart('\\').TrimStart('/'));
-			else if (path.StartsWith("[GAME]", StringComparison.InvariantCultureIgnoreCase))
+			if (path.StartsWith("[GAME]", StringComparison.InvariantCultureIgnoreCase))
 				return Path.Combine(config.SteamInstallationPath, path.Substring(6, path.Length - 6).TrimStart('\\').TrimStart('/'));
 
-			if (path.StartsWith("@"))
-				return Path.Combine(mod.Config.ModCachePath, path.Substring(1, path.Length - 1).TrimStart('\\').TrimStart('/'));
-			else if (path.StartsWith("[MOD]", StringComparison.InvariantCultureIgnoreCase))
+			if (path.StartsWith("[MOD]", StringComparison.InvariantCultureIgnoreCase))
 				return Path.Combine(mod.Config.ModCachePath, path.Substring(5, path.Length - 5).TrimStart('\\').TrimStart('/'));
 
-			throw new Exception("Supplied path must begin with the following: [GAME], [MOD], ~ or @");
+			throw new Exception("Supplied path must begin with the following: [GAME], [MOD]");
 		}
 
 		public void RemoveAllChanges(Configuration configuration)

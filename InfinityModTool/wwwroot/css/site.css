@@ -474,3 +474,24 @@ h1.missing {
     color: lightgrey;
 }
 
+.log-textarea {
+    width: 100%;
+    height: 500px;
+    border-radius: 3px;
+    border: 1px solid #686868;
+    background: white;
+    padding: 20px;
+    overflow-y: scroll;
+}
+
+.log-textarea span {
+    display: block;
+}
+
+    .log-textarea span.error {
+        color: red;
+    }
+
+    .log-textarea span.warning {
+        color: orange;
+    }

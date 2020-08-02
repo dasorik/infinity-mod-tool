@@ -100,7 +100,7 @@
         switch (result)
         {
             case Enums.ModLoadStatus.ConfigInvalid:
-                errorMessage = "The selected mod is not configured properly. Please check the config.json file";
+                errorMessage = "The selected mod is not configured properly. Please check the config.json file (see logs for details)";
                 break;
             case Enums.ModLoadStatus.DuplicateID:
                 errorMessage = "A mod with the same ID has already been added";
@@ -141,13 +141,13 @@
         if (modService.ModLoadWarningShown)
             return;
 
-        var failedModLoads = modService.ModLoadResults.Where(r => new[] { Enums.ModLoadStatus.ConfigInvalid, Enums.ModLoadStatus.NoConfig, Enums.ModLoadStatus.UnspecifiedFailure, Enums.ModLoadStatus.UnsupportedVersion }.Contains(r.status));
+        var failedModLoads = modService.ModLoadResults.Where(r => !(new[] { Enums.ModLoadStatus.Success }.Contains(r.status)));
 
         if (failedModLoads.Count() > 0)
         {
             ShowAlertDialog(
                 title: "Mods Failed to Load",
-                message: $"The following mods failed to load: {string.Join(", ", failedModLoads.Select(r => $"{r.modFileName} - {r.status}"))}",
+                message: $"The following mods failed to load (check logs for details): {string.Join(", ", failedModLoads.Select(r => $"{r.modFileName} - {r.status}"))}",
                 level: AlertLevel.Warning,
                 onClick: async () => { modService.ModLoadWarningShown = true; }
             );
@@ -256,10 +256,16 @@
         switch (installStatus.status)
         {
             case Enums.InstallationStatus.FatalError:
-            case Enums.InstallationStatus.RolledBackError:
                 ShowAlertDialog(
                     title: "Oops, something went wrong!",
                     message: "Something went wrong during mod installation. All mods have been uninstalled, and your game has been restored",
+                    level: AlertLevel.Error
+                );
+                break;
+            case Enums.InstallationStatus.RolledBackError:
+                ShowAlertDialog(
+                    title: "Oops, something went wrong!",
+                    message: "Something went wrong during mod installation. The selected mod has not been installed",
                     level: AlertLevel.Error
                 );
                 break;
