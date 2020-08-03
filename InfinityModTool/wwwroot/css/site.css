@@ -48,7 +48,7 @@ app {
 }
 
 .sidebar {
-    background-color: #0f4c99;
+    background-color: #407fcf;
 }
 
     .sidebar .top-row {
@@ -186,6 +186,20 @@ app {
 .version-number {
     font-size: 0.8em;
     color: white;
+    position: absolute;
+    bottom: 0px;
+    display: block;
+    margin: 8px;
+    color: rgba(255,255,255,0.5);
+}
+
+.tool-logo {
+    width: 40px;
+    height: 40px;
+    background-size: cover;
+    display: inline-block;
+    vertical-align: middle;
+    background-image: url('../img/logo.svg');
 }
 
 .nav-icon {
@@ -195,6 +209,10 @@ app {
     display: inline-block;
     vertical-align: middle;
     margin-right: 16px;
+}
+
+.nav-icon.all {
+    background-image: url('../img/icon-all.svg');
 }
 
 .nav-icon.gear {
@@ -501,15 +519,13 @@ h1.missing {
     }
 
 .prerelease-banner {
-    position: fixed;
+    position: absolute;
     z-index: 99;
-    left: 0px;
-    right: 0px;
-    bottom: 0px;
-    height: 30px;
-    font-size: 1.1em;
-    color: orangered;
-    text-align: center;
-    vertical-align: middle;
-    background-color: rgba(255, 128, 72, 0.29);
+    left: 258px;
+    right: 8px;
+    bottom: 8px;
+}
+
+.alert.no-margin {
+    margin-bottom: 0px;
 }

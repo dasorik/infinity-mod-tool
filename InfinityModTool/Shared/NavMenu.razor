@@ -1,8 +1,8 @@
 ﻿@inject InfinityModTool.Services.ModService modService;
 
 <div class="top-row pl-4 navbar navbar-dark">
+    <span class="tool-logo" aria-hidden="true"></span>
     <a class="navbar-brand" href="">Infinity Mod Tool</a>
-    <span class="version-number">v0.0.1</span>
     <button class="navbar-toggler" @onclick="ToggleNavMenu">
         <span class="navbar-toggler-icon"></span>
     </button>
@@ -12,7 +12,7 @@
     <ul class="nav flex-column">
         <li class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="nav-icon character" aria-hidden="true"></span> All
+                <span class="nav-icon all" aria-hidden="true"></span> All
             </NavLink>
         </li>
         <li class="nav-item px-3">
@@ -55,6 +55,8 @@
             </li>
         }*@
     </ul>
+
+    <span class="version-number">v0.0.1</span>
 </div>
 
 @code {
