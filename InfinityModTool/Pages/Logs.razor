@@ -13,13 +13,13 @@
 
 @code {
 
-    public string GetLogSeverityClass(Microsoft.CodeAnalysis.DiagnosticSeverity severity)
+    public string GetLogSeverityClass(InfinityModTool.Utilities.Logging.LogSeverity severity)
     {
         switch (severity)
         {
-            case Microsoft.CodeAnalysis.DiagnosticSeverity.Warning:
+            case InfinityModTool.Utilities.Logging.LogSeverity.Warning:
                 return "warning";
-            case Microsoft.CodeAnalysis.DiagnosticSeverity.Error:
+            case InfinityModTool.Utilities.Logging.LogSeverity.Error:
                 return "error";
         }
 

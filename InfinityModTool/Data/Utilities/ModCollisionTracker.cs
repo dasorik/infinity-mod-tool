@@ -3,14 +3,9 @@ using InfinityModTool.Data.InstallActions;
 using InfinityModTool.Data.Modifications;
 using InfinityModTool.Enums;
 using InfinityModTool.Models;
-using Microsoft.AspNetCore.Razor.Language.Intermediate;
-using Microsoft.AspNetCore.Server.IIS.Core;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Threading.Tasks;
 
 namespace InfinityModTool.Utilities
 {

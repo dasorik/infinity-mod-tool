@@ -3,8 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using InfinityModTool.Data.Modifications;
 using InfinityModTool.Extension;
@@ -12,11 +10,6 @@ using InfinityModTool.Data.InstallActions;
 using System.Reflection;
 using InfinityModTool.Enums;
 using InfinityModTool.Models;
-using UnluacNET;
-using System.Net.NetworkInformation;
-using System.Runtime;
-using ElectronNET.API.Entities;
-using System.Security.Cryptography;
 
 namespace InfinityModTool.Utilities
 {
@@ -24,8 +17,10 @@ namespace InfinityModTool.Utilities
 	{
 #if DEBUG
 		const string RESERVED_FILES = "..\\..\\..\\reserved_files.txt";
+		const string CHARACTER_ID_NAMES = "..\\..\\..\\character_ids.json";
 #else
 		const string RESERVED_FILES = "reserved_files.txt";
+		const string CHARACTER_ID_NAMES = "character_ids.json";
 #endif
 
 		public class ReservedFileModificationException : Exception
@@ -100,7 +95,7 @@ namespace InfinityModTool.Utilities
 			}
 			catch (Exception ex)
 			{
-				Logging.LogMessage(ex.ToString(), Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
+				Logging.LogMessage(ex.ToString(), Logging.LogSeverity.Error);
 
 				Directory.Delete(tempFolder, true);
 
@@ -162,7 +157,7 @@ namespace InfinityModTool.Utilities
 
 		private string CreateTempFolder()
 		{
-			var tempDirectory = Path.Combine(Global.APP_DATA_FOLDER, "TempModInstallData");
+			var tempDirectory = Path.Combine(Global.APP_DATA_FOLDER, "ModInstallData");
 
 			if (Directory.Exists(tempDirectory))
 				Directory.Delete(tempDirectory, true);
@@ -375,18 +370,12 @@ namespace InfinityModTool.Utilities
 			File.Copy(path, backupPath, true);
 		}
 
-		private string GetBackupFilePath(string path)
-		{
-			string relativePath = path.Substring(configuration.SteamInstallationPath.Length).Trim('\\').Trim('.');
-			string backupPath = Path.Combine(Global.APP_DATA_FOLDER, "Backup", relativePath);
-
-			return backupPath;
-		}
-
 		private HashSet<string> GetReservedFiles()
 		{
 			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 			var filePath = Path.Combine(executionPath, RESERVED_FILES);
+
+			Logging.LogMessage($"Loading reserved file list from: {filePath}", Logging.LogSeverity.Info);
 
 			string[] reservedFiles = File.ReadAllLines(filePath);
 			var hashSet = new HashSet<string>();
@@ -395,6 +384,20 @@ namespace InfinityModTool.Utilities
 				hashSet.Add(Path.Combine(configuration.SteamInstallationPath, file));
 
 			return hashSet;
+		}
+
+		public static ListOption[] GetIDNameListOptions()
+		{
+			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+			var idNamePath = Path.Combine(executionPath, CHARACTER_ID_NAMES);
+
+			Logging.LogMessage($"Reading ID name from: {idNamePath}", Logging.LogSeverity.Info);
+
+			return null;
+			//var fileData = File.ReadAllText(idNamePath);
+			//var idNames = Newtonsoft.Json.JsonConvert.DeserializeObject<IDNames>(fileData);
+
+			//return idNames.CharacterIDs.Select(id => new ListOption(id.ID, id.DisplayName)).ToArray();
 		}
 
 		private bool IsReservedFile(string path)

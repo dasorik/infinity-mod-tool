@@ -1,13 +1,7 @@
-﻿using Microsoft.Extensions.Configuration;
-using LitJson;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Linq;
-using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Controller;
-using System.Drawing.Imaging;
-using System.Security.Cryptography;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using InfinityModTool.Data.InstallActions;
 using InfinityModTool.Enums;
@@ -16,17 +10,8 @@ namespace InfinityModTool.Data.Utilities
 {
 	public class ModLoaderUtility
 	{
-#if DEBUG
-		const string MOD_PATH = "..\\..\\..\\Mods";
-		const string CHARACTER_ID_NAMES = "..\\..\\..\\character_ids.json";
-#else
-		const string MOD_PATH = "Mods";
-		const string CHARACTER_ID_NAMES = "character_ids.json";
-#endif
-
 		private class ModPathInfo
 		{
-			public string executionPath;
 			public string modPath;
 			public string extractBasePath;
 		}
@@ -45,32 +30,18 @@ namespace InfinityModTool.Data.Utilities
 			}
 		}
 
-		public static ListOption[] GetIDNameListOptions()
-		{
-			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-			var idNamePath = Path.Combine(executionPath, CHARACTER_ID_NAMES);
-
-			var fileData = File.ReadAllText(idNamePath);
-			var idNames = Newtonsoft.Json.JsonConvert.DeserializeObject<IDNames>(fileData);
-
-			return idNames.CharacterIDs.Select(id => new ListOption(id.ID, id.DisplayName)).ToArray();
-		}
-
 		public static string GetModPath()
 		{
-			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-			return Path.Combine(executionPath, MOD_PATH);
+			return Path.Combine(Global.APP_DATA_FOLDER, "Mods");
 		}
 
 		public static BaseModConfiguration[] LoadMods(double currentVersion, List<ModLoadResult> allResults)
 		{
-			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-			var modPath = Path.Combine(executionPath, MOD_PATH);
+			var modPath = Path.Combine(Global.APP_DATA_FOLDER, "Mods");
 			var extractBasePath = Path.Combine(Global.APP_DATA_FOLDER, "Temp");
 
 			var pathInfo = new ModPathInfo()
 			{
-				executionPath = executionPath,
 				modPath = modPath,
 				extractBasePath = extractBasePath
 			};

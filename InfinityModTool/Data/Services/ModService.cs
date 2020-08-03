@@ -1,11 +1,9 @@
-using ElectronNET.API.Entities;
 using InfinityModTool.Data;
 using InfinityModTool.Data.Modifications;
 using InfinityModTool.Data.Utilities;
 using InfinityModTool.Enums;
 using InfinityModTool.Models;
 using InfinityModTool.Utilities;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -30,19 +28,19 @@ namespace InfinityModTool.Services
 
 		public ModService()
 		{
-			Logging.LogMessage("Loading user settings...", Microsoft.CodeAnalysis.DiagnosticSeverity.Info);
+			Logging.LogMessage("Loading user settings...", Logging.LogSeverity.Info);
 			this.Settings = SettingsUtility.LoadSettings<UserModData>(USER_SETTINGS);
 
 			if (Settings.InstalledMods == null)
 				Settings.InstalledMods = new List<ModInstallationData>();
 
-			this.IDNames = ModLoaderUtility.GetIDNameListOptions();
+			this.IDNames = ModUtility.GetIDNameListOptions();
 			ReloadMods();
 		}
 
 		public void ReloadMods()
 		{
-			Logging.LogMessage("Loading Mods...", Microsoft.CodeAnalysis.DiagnosticSeverity.Info);
+			Logging.LogMessage("Loading Mods...", Logging.LogSeverity.Info);
 
 			this.ModLoadWarningShown = false;
 			this.AvailableMods = ModLoaderUtility.LoadMods(CurrentVersion, ModLoadResults);
@@ -53,11 +51,11 @@ namespace InfinityModTool.Services
 					continue;
 
 				foreach (var error in mod.loadErrors)
-					Logging.LogMessage($"{mod.modFileName} - {error}", Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
+					Logging.LogMessage($"{mod.modFileName} - {error}", Logging.LogSeverity.Error);
 			}
 
 			if (ModLoadResults.All(m => m.status == ModLoadStatus.Success))
-				Logging.LogMessage("Loaded all mods successfully!", Microsoft.CodeAnalysis.DiagnosticSeverity.Info);
+				Logging.LogMessage("Loaded all mods successfully!", Logging.LogSeverity.Info);
 		}
 
 		public ModLoadStatus TryAddMod(string fileName, byte[] fileBytes)

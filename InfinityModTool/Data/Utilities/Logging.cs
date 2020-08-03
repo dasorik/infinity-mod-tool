@@ -1,20 +1,24 @@
-﻿using Microsoft.CodeAnalysis;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace InfinityModTool.Utilities
 {
 	public class Logging
 	{
+		public enum LogSeverity
+		{
+			Info,
+			Warning,
+			Error
+		}
+
 		public struct Log
 		{
 			public readonly DateTime date;
 			public readonly string message;
-			public readonly DiagnosticSeverity severity;
+			public readonly LogSeverity severity;
 
-			public Log(string message, DiagnosticSeverity severity)
+			public Log(string message, LogSeverity severity)
 			{
 				this.message = message;
 				this.severity = severity;
@@ -24,7 +28,7 @@ namespace InfinityModTool.Utilities
 
 		static Queue<Log> logs = new Queue<Log>();
 
-		public static void LogMessage(string message, DiagnosticSeverity severity)
+		public static void LogMessage(string message, LogSeverity severity)
 		{
 			lock (logs)
 			{
