@@ -51,7 +51,7 @@ namespace InfinityModTool.Utilities
 				AddModClash(oldModActions.fileMoveActions, a => fileMove.action.TargetFile == a.action.TargetFile && fileMove.action.DestinationPath != a.action.DestinationPath, "Attempting to move a file that is moved elsewhere by another mod");
 
 				// Are we attempting to move a file to a destination moved to by another move?
-				AddModClash(oldModActions.fileMoveActions, a => fileMove.action.DestinationPath == a.action.DestinationPath, "Attempting to move a file to a destination that is moved to by another mod");
+				AddModClash(oldModActions.fileMoveActions, a => fileMove.action.TargetFile != a.action.TargetFile && fileMove.action.DestinationPath == a.action.DestinationPath, "Attempting to move a file to a destination that is moved to by another mod");
 
 				// Are we attempting to move a deleted file? (probably safe)
 				AddModWarning(oldModActions.fileDeleteActions, a => a.action.TargetFiles.Contains(fileMove.action.TargetFile), "Attempting to move a file that is deleted by another mod");

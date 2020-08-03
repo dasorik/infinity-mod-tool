@@ -37,6 +37,9 @@ namespace InfinityModTool.Utilities
 
 		private List<string> decompiledFiles = new List<string>();
 		private List<string> extractedFiles = new List<string>();
+		private List<string> movedFiles = new List<string>();
+		private List<string> deletedFiles = new List<string>();
+		private List<string> replacedFiles = new List<string>();
 
 		public ModUtility(Configuration configuration)
 		{
@@ -226,10 +229,16 @@ namespace InfinityModTool.Utilities
 			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod, configuration);
 			var physicalDestinationPath = ResolvePath(modAction.action.DestinationPath, modAction.mod, configuration);
 
+			// Check if this has already been moved
+			if (movedFiles.Contains(physicalTargetPath))
+				return;
+
 			if (!File.Exists(physicalTargetPath))
 				throw new Exception($"Unable to find target path: {physicalTargetPath}");
 
 			MoveFile_Internal(physicalTargetPath, physicalDestinationPath);
+
+			movedFiles.Add(physicalTargetPath);
 		}
 
 		private void ReplaceFile(ModAction<FileReplaceAction> modAction)
@@ -237,10 +246,16 @@ namespace InfinityModTool.Utilities
 			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod, configuration);
 			var physicalDestinationPath = ResolvePath(modAction.action.ReplacementFile, modAction.mod, configuration);
 
+			// Check if this has already been replaced
+			if (replacedFiles.Contains(physicalTargetPath))
+				return;
+
 			if (!File.Exists(physicalTargetPath))
 				throw new Exception($"Unable to find target path: {physicalTargetPath}");
 
 			MoveFile_Internal(physicalTargetPath, physicalDestinationPath);
+
+			replacedFiles.Add(physicalTargetPath);
 		}
 
 		private void CopyFile(ModAction<FileCopyAction> modAction)
@@ -260,10 +275,16 @@ namespace InfinityModTool.Utilities
 			{
 				var physicalTargetPath = ResolvePath(file, modAction.mod, configuration);
 
+				// Check if this has already been deleted
+				if (deletedFiles.Contains(physicalTargetPath))
+					return;
+
 				if (!File.Exists(physicalTargetPath))
 					throw new Exception($"Unable to find target path: {physicalTargetPath}");
 
 				DeleteFile_Internal(physicalTargetPath);
+
+				deletedFiles.Add(physicalTargetPath);
 			}
 		}
 
