@@ -244,7 +244,7 @@ namespace InfinityModTool.Utilities
 		private void ReplaceFile(ModAction<FileReplaceAction> modAction)
 		{
 			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod, configuration);
-			var physicalDestinationPath = ResolvePath(modAction.action.ReplacementFile, modAction.mod, configuration);
+			var physicalReplacementPath = ResolvePath(modAction.action.ReplacementFile, modAction.mod, configuration);
 
 			// Check if this has already been replaced
 			if (replacedFiles.Contains(physicalTargetPath))
@@ -253,7 +253,7 @@ namespace InfinityModTool.Utilities
 			if (!File.Exists(physicalTargetPath))
 				throw new Exception($"Unable to find target path: {physicalTargetPath}");
 
-			MoveFile_Internal(physicalTargetPath, physicalDestinationPath);
+			MoveFile_Internal(physicalReplacementPath, physicalTargetPath);
 
 			replacedFiles.Add(physicalTargetPath);
 		}

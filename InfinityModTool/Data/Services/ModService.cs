@@ -102,13 +102,13 @@ namespace InfinityModTool.Services
 				return "mod-type-character.svg";
 
 			if (modData.ModCategory.Equals("Playset", System.StringComparison.InvariantCultureIgnoreCase))
-				return "mod-type-character.svg";
+				return "mod-type-playset.svg";
 
 			if (modData.ModCategory.Equals("CostumeCoin", System.StringComparison.InvariantCultureIgnoreCase))
-				return "mod-type-character.svg";
+				return "mod-type-costumecoin.svg";
 
 			if (modData.ModCategory.Equals("PowerDisc", System.StringComparison.InvariantCultureIgnoreCase))
-				return "mod-type-character.svg";
+				return "mod-type-powerdisc.svg";
 
 			return string.Empty;
 		}
