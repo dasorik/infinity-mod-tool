@@ -123,7 +123,7 @@ namespace InfinityModTool.Utilities
 
 			do
 			{
-				path = Path.Combine(directory, $"{fileName} ({index}){fileInfo.Extension}");
+				path = Path.Combine(directory, $"{fileName}_{index}{fileInfo.Extension}");
 			}
 			while (files.Contains(path));
 

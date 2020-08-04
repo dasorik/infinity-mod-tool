@@ -43,7 +43,7 @@ namespace InfinityModTool.Services
 			Logging.LogMessage("Loading Mods...", Logging.LogSeverity.Info);
 
 			this.ModLoadWarningShown = false;
-			this.AvailableMods = ModLoaderUtility.LoadMods(CurrentVersion, ModLoadResults);
+			this.AvailableMods = ModLoaderUtility.LoadMods(Settings.AvailableMods, ModLoadResults);
 
 			foreach (var mod in this.ModLoadResults)
 			{
@@ -68,6 +68,9 @@ namespace InfinityModTool.Services
 			var fileInfo = new FileInfo(modInstallPath);
 			File.WriteAllBytes(modInstallPath, fileBytes);
 
+			// Add this mod to the mod list, so it will attemp to be loaded
+			Settings.AvailableMods.Add(fileInfo.Name);
+
 			ReloadMods();
 
 			var result = ModLoadResults.First(r => r.modFileName == fileInfo.Name).status;
@@ -77,7 +80,12 @@ namespace InfinityModTool.Services
 			{
 				// If this mod failed to load, 
 				File.Delete(modInstallPath);
+				Settings.AvailableMods.Remove(fileInfo.Name);
 				ReloadMods();
+			}
+			else
+			{
+				SaveSettings();
 			}
 
 			return result;
@@ -195,6 +203,17 @@ namespace InfinityModTool.Services
 			SaveSettings();
 
 			return new InstallInfo(result, modUtility.conflicts);
+		}
+
+		public void DeleteMod(string modID)
+		{
+			var loadedMod = ModLoadResults.First(m => m.modID == modID);
+			ModLoaderUtility.DeleteMod(loadedMod);
+
+			Settings.AvailableMods.Remove(loadedMod.modFileName);
+			ReloadMods();
+
+			SaveSettings();
 		}
 
 		private bool CheckSteamPathSettings()

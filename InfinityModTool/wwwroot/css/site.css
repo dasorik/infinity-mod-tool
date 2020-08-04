@@ -529,3 +529,13 @@ h1.missing {
 .alert.no-margin {
     margin-bottom: 0px;
 }
+
+/* Blazor Context Menu */
+
+.blazor-context-menu {
+    z-index: 100;
+}
+
+.blazor-context-menu-area {
+    display: inline-block;
+}

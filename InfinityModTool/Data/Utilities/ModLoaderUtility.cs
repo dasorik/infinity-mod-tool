@@ -5,6 +5,7 @@ using System.Linq;
 using System;
 using InfinityModTool.Data.InstallActions;
 using InfinityModTool.Enums;
+using InfinityModTool.Pages;
 
 namespace InfinityModTool.Data.Utilities
 {
@@ -19,12 +20,14 @@ namespace InfinityModTool.Data.Utilities
 		public class ModLoadResult
 		{
 			public readonly string modFileName;
+			public readonly string modID;
 			public readonly ModLoadStatus status;
 			public readonly IEnumerable<string> loadErrors;
 
-			public ModLoadResult(string modPath, ModLoadStatus status, IEnumerable<string> loadErrors = null)
+			public ModLoadResult(string modFileName, string modID, ModLoadStatus status, IEnumerable<string> loadErrors = null)
 			{
-				this.modFileName = modPath;
+				this.modFileName = modFileName;
+				this.modID = modID;
 				this.status = status;
 				this.loadErrors = loadErrors ?? new List<string>();
 			}
@@ -35,7 +38,13 @@ namespace InfinityModTool.Data.Utilities
 			return Path.Combine(Global.APP_DATA_FOLDER, "Mods");
 		}
 
-		public static BaseModConfiguration[] LoadMods(double currentVersion, List<ModLoadResult> allResults)
+		public static void DeleteMod(ModLoadResult result)
+		{
+			var modPath = Path.Combine(GetModPath(), result.modFileName);
+			File.Delete(modPath);
+		}
+
+		public static BaseModConfiguration[] LoadMods(List<string> modsToLoad, List<ModLoadResult> allResults)
 		{
 			var modPath = Path.Combine(Global.APP_DATA_FOLDER, "Mods");
 			var extractBasePath = Path.Combine(Global.APP_DATA_FOLDER, "Temp");
@@ -54,16 +63,25 @@ namespace InfinityModTool.Data.Utilities
 			var mods = new List<BaseModConfiguration>();
 			allResults.Clear();
 
-			foreach (var file in Directory.GetFiles(modPath))
+			foreach (var modName in modsToLoad)
 			{
 				var errors = new List<string>();
-				var fileInfo = new FileInfo(file);
+				var fileInfo = new FileInfo(Path.Combine(modPath, modName));
 				var result = TryLoadV1Mod(fileInfo, pathInfo, out var modData, errors);
 
 				if (result == ModLoadStatus.Success)
-					mods.Add(modData);
+				{
+					if (mods.Any(m => m.ModID == modData.ModID))
+					{
+						result = ModLoadStatus.DuplicateID;
+					}
+					else
+					{
+						mods.Add(modData);
+					}
+				}
 
-				allResults.Add(new ModLoadResult(fileInfo.Name, result, errors));
+				allResults.Add(new ModLoadResult(fileInfo.Name, result == ModLoadStatus.Success ? modData?.ModID : null, result, errors));
 			}
 
 			return mods.ToArray();

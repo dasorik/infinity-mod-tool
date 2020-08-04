@@ -3,6 +3,7 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Blazor.ContextMenu" Version="1.6.0" />
     <PackageReference Include="ElectronNET.API" Version="8.31.2" />
     <PackageReference Include="Tewr.Blazor.FileReader" Version="2.0.0.20200" />
   </ItemGroup>

@@ -35,12 +35,20 @@
 
 @foreach (var mod in mods)
 {
-    <CharacterButton IDName="@mod.ModID" DisplayName="@mod.DisplayName" DisplayImage="@mod.DisplayImageBase64" DisplayColor="@mod.DisplayColor" Icon="@modService.GetModIcon(mod.ModID)" Installed="@modService.IsModInstalled(mod.ModID)" OnClick="@SelectMod"></CharacterButton>
+    string contextID = $"context-menu-{@mod.ModID}";
+
+    <ContextMenu Id="@contextID">
+        <Item OnClick="(e) => { TryDeleteMod(mod.ModID); }">Remove from list</Item>
+    </ContextMenu>
+
+    <ContextMenuTrigger MenuID="@contextID" CssClass="blazor-context-menu-area">
+        <CharacterButton IDName="@mod.ModID" DisplayName="@mod.DisplayName" DisplayImage="@mod.DisplayImageBase64" DisplayColor="@mod.DisplayColor" Icon="@modService.GetModIcon(mod.ModID)" Installed="@modService.IsModInstalled(mod.ModID)" OnClick="@SelectMod"></CharacterButton>
+    </ContextMenuTrigger>
 }
 
 <label class="character-button no-drop-shadow">
     <input type="file" @ref=inputTypeFileElement @onchange="ReadFile" />
-    <img src="img/add-new-mod.svg" class="new"/>
+    <img src="img/add-new-mod.svg" class="new" />
 </label>
 
 @code {
@@ -76,7 +84,9 @@
         showLoadingIcon = true;
 
         Tewr.Blazor.FileReader.IFileReference fileReference = null;
-        foreach (var file in await fileReaderService.CreateReference(inputTypeFileElement).EnumerateFilesAsync())
+        Tewr.Blazor.FileReader.IFileReaderRef fileReader = fileReaderService.CreateReference(inputTypeFileElement);
+
+        foreach (var file in await fileReader.EnumerateFilesAsync())
         {
             fileReference = file;
             break;
@@ -128,11 +138,39 @@
             );
         }
 
-        // Clear this
-        inputTypeFileElement = new ElementReference();
-        showLoadingIcon = false;
+        // Make sure to reset this...
+        await fileReader.ClearValue();
 
         mods = modService.GetModsForCategory(category); // We need to show the new list of mods
+
+        showLoadingIcon = false;
+    }
+
+    void TryDeleteMod(string modID)
+    {
+        if (modService.IsModInstalled(modID))
+        {
+            ShowAlertDialog(
+                title: "Can't remove mod",
+                message: "This mod is currently installed, and cannot be removed",
+                level: AlertLevel.Warning
+            );
+        }
+        else
+        {
+            ShowConfirmDialog(
+                title: "Delete this mod?",
+                message: "Are you sure you want to delete this mod?",
+                level: AlertLevel.Warning,
+                confirmAction: async () => { await DeleteMod(modID); }
+            );
+        }
+    }
+
+    async Task DeleteMod(string modID)
+    {
+        modService.DeleteMod(modID);
+        mods = modService.GetModsForCategory(category);
     }
 
     void CheckForUnloadedMods()
