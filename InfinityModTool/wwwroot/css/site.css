@@ -98,6 +98,12 @@ app {
                 color: white;
             }
 
+.nav li hr {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    border-color: rgba(255,255,255,0.2);
+}
+
 .content {
     padding-top: 1.1rem;
 }
@@ -436,7 +442,7 @@ img .vertical-align {
 
     .character-button .button-footer {
         position: absolute;
-        bottom: 0px;
+        bottom: -1px;
         left: 0px;
         width: 100%;
         height: 67px;
