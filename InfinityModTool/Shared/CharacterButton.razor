@@ -4,10 +4,16 @@
             <div class="vertical-align-helper"></div>
             <img src="@DisplayImage" class="vertical-align" />
             <div class="button-header" style="filter: red">
-                <img src="img/button-top-@(DisplayColor ?? "blue").svg" />
+                @if (DisplayColor != "none")
+                {
+                    <img src="img/borders/button-top-@(DisplayColor ?? "blue").svg" />
+                }
             </div>
             <div class="button-footer">
-                <img src="img/button-bottom-@(DisplayColor ?? "blue").svg" />
+                @if (DisplayColor != "none")
+                {
+                    <img src="img/borders/button-bottom-@(DisplayColor ?? "blue").svg" />
+                }
             </div>
             @if (!string.IsNullOrEmpty(Icon))
             {

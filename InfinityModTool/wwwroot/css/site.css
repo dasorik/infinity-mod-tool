@@ -231,6 +231,10 @@ app {
     background-image: url('../img/mod-type-powerdisc.svg')
 }
 
+.nav-icon.misc {
+    background-image: url('../img/mod-type-misc.svg')
+}
+
 .nav-icon.costumecoin {
     background-image: url('../img/mod-type-costumecoin.svg')
 }

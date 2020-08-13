@@ -118,6 +118,9 @@ namespace InfinityModTool.Services
 			if (modData.ModCategory.Equals("PowerDisc", System.StringComparison.InvariantCultureIgnoreCase))
 				return "mod-type-powerdisc.svg";
 
+			if (modData.ModCategory.Equals("Misc", System.StringComparison.InvariantCultureIgnoreCase))
+				return "mod-type-misc.svg";
+
 			return string.Empty;
 		}
 
