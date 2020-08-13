@@ -26,15 +26,17 @@ namespace InfinityModTool
 
             ModInstallAction item = null;
             if (actionType.Equals("MoveFile", StringComparison.InvariantCultureIgnoreCase))
-                item = new FileMoveAction();
+                item = new MoveFileAction();
+            else if(actionType.Equals("MoveFiles", StringComparison.InvariantCultureIgnoreCase))
+                item = new MoveFilesAction();
             else if (actionType.Equals("DeleteFiles", StringComparison.InvariantCultureIgnoreCase))
-                item = new FileDeleteAction();
+                item = new DeleteFilesAction();
             else if (actionType.Equals("ReplaceFile", StringComparison.InvariantCultureIgnoreCase))
-                item = new FileReplaceAction();
+                item = new ReplaceFileAction();
             else if (actionType.Equals("CopyFile", StringComparison.InvariantCultureIgnoreCase))
-                item = new FileCopyAction();
+                item = new CopyFileAction();
             else if (actionType.Equals("WriteToFile", StringComparison.InvariantCultureIgnoreCase))
-                item = new FileWriteAction();
+                item = new WriteToFileAction();
             else if (actionType.Equals("QuickBMSExtract", StringComparison.InvariantCultureIgnoreCase))
                 item = new QuickBMSExtractAction();
             else if (actionType.Equals("UnluacDecompile", StringComparison.InvariantCultureIgnoreCase))

@@ -3,165 +3,211 @@ using InfinityModTool.Data.InstallActions;
 using InfinityModTool.Data.Modifications;
 using InfinityModTool.Enums;
 using InfinityModTool.Models;
+using InfinityModTool.Services;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
+using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Threading;
 
 namespace InfinityModTool.Utilities
 {
 	public class ModCollisionTracker
 	{
-		Configuration config;
-		List<ModCollision> collisions = new List<ModCollision>();
-
-		public ModCollisionTracker(Configuration config)
+		private class ActionCollection
 		{
-			this.config = config;
+			public readonly FileModification moveAction;
+			public readonly FileModification replaceAction;
+			public readonly FileModification editAction;
+			public readonly FileModification addAction;
+			public readonly FileModification deleteAction;
+			public readonly FileModification lastAction;
+
+			public ActionCollection(string file, string currentModID, List<FileModification> modifications)
+			{
+				var fileModifications = modifications.Where(m => m.FilePath == file);
+
+				this.moveAction = fileModifications.LastOrDefault(a => a.ModID != currentModID && a.Type == FileModificationType.Moved);
+				this.replaceAction = fileModifications.LastOrDefault(a => a.ModID != currentModID && a.Type == FileModificationType.Replaced);
+				this.editAction = fileModifications.LastOrDefault(a => a.ModID != currentModID && a.Type == FileModificationType.Edited);
+				this.addAction = fileModifications.LastOrDefault(a => a.ModID != currentModID && a.Type == FileModificationType.Added);
+				this.deleteAction = fileModifications.LastOrDefault(a => a.ModID != currentModID && a.Type == FileModificationType.Deleted);
+				this.lastAction = fileModifications.LastOrDefault(a => a.ModID != currentModID);
+			}
 		}
 
-		public ModCollision[] CheckForPotentialModCollisions(GameModification newMod, ModActionCollection modActions)
+		public static bool HasMoveCollision(GameModification currentMod, string file, string destinationPath, List<FileModification> modifications, out ModCollision collision)
 		{
-			var newModActions = modActions.CreateFilteredCollection(newMod, filterOut: false);
-			var oldModActions = modActions.CreateFilteredCollection(newMod, filterOut: true);
+			var actions = new ActionCollection(file, currentMod.Config.ModID, modifications);
+			var destinationActions = new ActionCollection(destinationPath, currentMod.Config.ModID, modifications);
 
-			// We will use the assumption that all that have been installed previously were compatible with each other
-			// (ie. we'll only check against the newly added mod)
+			if (actions.moveAction != null && destinationPath != (actions.moveAction as MoveFileModification).DestinationPath)
+				return AddModCollision(currentMod, ModInstallActionEnum.Move, FileModificationType.Moved, actions.moveAction.ModID, ModCollisionSeverity.Clash, out collision);
 
-			foreach (var fileWrite in newModActions.fileWriteActions)
+			if (actions.replaceAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Move, FileModificationType.Replaced, actions.replaceAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (actions.editAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Move, FileModificationType.Edited, actions.editAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (actions.deleteAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Move, FileModificationType.Deleted, actions.deleteAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (destinationActions.lastAction != null && !(new[] { FileModificationType.Moved, FileModificationType.Deleted }).Contains(destinationActions.lastAction.Type))
 			{
-				// Are we attempting to write data to an overridden or deleted section of a file
-				AddModClash(oldModActions.fileWriteActions, a => CheckForFileWriteCollisions(fileWrite, a), "A mod attempted to write content to a file at a position that is deleted/overriden by another");
-
-				// Are we attempting to write to a deleted file?
-				AddModClash(oldModActions.fileDeleteActions, a => a.action.TargetFiles.Contains(fileWrite.action.TargetFile), "Attempting to write to a file that is deleted by another mod");
-
-				// Are we attempting to write to a moved file, or the target destination?
-				AddModClash(oldModActions.fileMoveActions, a => fileWrite.action.TargetFile == a.action.TargetFile, "Attempting to write to a file that is moved by another mod");
-
-				// Are we attempting to write to a replaced file?
-				AddModClash(oldModActions.fileReplaceActions, a => fileWrite.action.TargetFile == a.action.TargetFile, "Attempting to write to a file that is replaced by another mod");
-			}
-
-			foreach (var fileMove in newModActions.fileMoveActions)
-			{
-				// Are we attempting to move a writen to file?
-				AddModClash(oldModActions.fileWriteActions, a => fileMove.action.TargetFile == a.action.TargetFile, "Attempting to move a file that is written to by another mod");
-
-				// Are we attempting to move a file that is moved elsewhere?
-				AddModClash(oldModActions.fileMoveActions, a => fileMove.action.TargetFile == a.action.TargetFile && fileMove.action.DestinationPath != a.action.DestinationPath, "Attempting to move a file that is moved elsewhere by another mod");
-
-				// Are we attempting to move a file to a destination moved to by another move?
-				AddModClash(oldModActions.fileMoveActions, a => fileMove.action.TargetFile != a.action.TargetFile && fileMove.action.DestinationPath == a.action.DestinationPath, "Attempting to move a file to a destination that is moved to by another mod");
-
-				// Are we attempting to move a deleted file? (probably safe)
-				AddModWarning(oldModActions.fileDeleteActions, a => a.action.TargetFiles.Contains(fileMove.action.TargetFile), "Attempting to move a file that is deleted by another mod");
-
-				// Are we attempting to move to a replaced file?
-				AddModClash(oldModActions.fileReplaceActions, a => fileMove.action.TargetFile == a.action.TargetFile, "Attempting to move a file that is replaced by another mod");
-
-				// Are we attempting to move to a destination copied to by another mod?
-				AddModClash(oldModActions.fileCopyActions, a => fileMove.action.DestinationPath == a.action.DestinationPath && fileMove.action.TargetFile != a.action.TargetFile, "Attempting to move a file to a destination that is copied to by another mod (with different data)");
-			}
-
-			foreach (var fileReplace in newModActions.fileReplaceActions)
-			{
-				// Are we attempting to replace a writen to file?
-				AddModClash(oldModActions.fileWriteActions, a => fileReplace.action.TargetFile == a.action.TargetFile, "Attempting to replace a file that is written to by another mod");
-
-				// Are we attempting to replace a deleted file?
-				AddModClash(oldModActions.fileDeleteActions, a => a.action.TargetFiles.Contains(fileReplace.action.TargetFile), "Attempting to replace a file that is deleted by another mod");
-
-				// Are we attempting to replace to a moved file?
-				AddModClash(oldModActions.fileMoveActions, a => fileReplace.action.TargetFile == a.action.TargetFile, "Attempting to replace a file that is moved by another mod");
-
-				// Are we attempting to replace to a replaced file?
-				AddModClash(oldModActions.fileReplaceActions, a => fileReplace.action.TargetFile == a.action.TargetFile && FilesAreDifferent(fileReplace, a), "Attempting to move a file that is replaced by another mod");
-			}
-
-			foreach (var fileDelete in newModActions.fileDeleteActions)
-			{
-				// Are we attempting to delete to a writen to file?
-				AddModClash(oldModActions.fileWriteActions, a => fileDelete.action.TargetFiles.Contains(a.action.TargetFile), "Attempting to delete a file that is written to by another mod");
-
-				// Are we attempting to delete a file that is moved elsewhere?
-				AddModClash(oldModActions.fileReplaceActions, a => fileDelete.action.TargetFiles.Contains(a.action.TargetFile), "Attempting to delete a file that is replaced by another mod");
-
-				// Are we attempting to delete to a moved file? (probably a safe thing to do)
-				AddModWarning(oldModActions.fileMoveActions, a => fileDelete.action.TargetFiles.Contains(a.action.TargetFile), "Attempting to delete a file that is moved by another mod");
-			}
-
-			foreach (var fileCopy in newModActions.fileCopyActions)
-			{
-				// Are we attempting to copy to a destination moved to by another mod
-				AddModClash(oldModActions.fileMoveActions, a => fileCopy.action.DestinationPath == a.action.DestinationPath && fileCopy.action.TargetFile != a.action.TargetFile, "Attempting to copy a file to a destination that is moved to by another mod (with different data)");
-
-				// Are we attempting to copy to a destination copied to by another mod
-				AddModClash(oldModActions.fileCopyActions, a => fileCopy.action.DestinationPath == a.action.DestinationPath && fileCopy.action.TargetFile != a.action.TargetFile, "Attempting to copy a file to a destination that is copied to by another mod (with different data)");
-			}
-
-			return collisions.ToArray();
-		}
-
-		private void AddModWarning<T>(IEnumerable<ModAction<T>> actions, Func<ModAction<T>, bool> predicate, string message)
-			where T : ModInstallAction
-		{
-			AddModCollisions(actions, predicate, ModCollisionSeverity.Warning, message);
-		}
-
-		private void AddModClash<T>(IEnumerable<ModAction<T>> actions, Func<ModAction<T>, bool> predicate, string message)
-			where T : ModInstallAction
-		{
-			AddModCollisions(actions, predicate, ModCollisionSeverity.Clash, message);
-		}
-
-		private void AddModCollisions<T>(IEnumerable<ModAction<T>> actions, Func<ModAction<T>, bool> predicate, ModCollisionSeverity severity, string message)
-			where T : ModInstallAction
-		{
-			foreach (var action in actions)
-				if (predicate(action))
-					collisions.Add(new ModCollision(action.mod, severity, message));
-		}
-
-		private bool CheckForFileWriteCollisions(ModAction<FileWriteAction> a1, ModAction<FileWriteAction> a2)
-		{
-			// These aren't targeting the same file, so ignore
-			if (a1.action.TargetFile != a2.action.TargetFile)
-				return false; 
-
-			foreach(var a2Content in a2.action.Content)
-			{
-				var a2Length = a2Content.EndOffset.HasValue ? a2Content.EndOffset.Value - a2Content.StartOffset : 0;
-
-				foreach (var a1Content in a1.action.Content)
+				if (MD5Utility.CalculateMD5Hash(file) != MD5Utility.CalculateMD5Hash(destinationPath))
 				{
-					var a1Length = a1Content.EndOffset.HasValue ? a1Content.EndOffset.Value - a1Content.StartOffset : 0;
-
-					// Should not cause collisions
-					if (!a1Content.Replace && !a2Content.Replace)
-						continue;
-
-					// Current mod is trying to replace a section injected into by another
-					if (a1Content.Replace && a2Content.StartOffset > a1Content.StartOffset && a2Content.StartOffset < a1Content.EndOffset.Value)
-						return true;
-
-					// Other mod is trying to replace a section injected into by the current mod
-					if (a2Content.Replace && a1Content.StartOffset > a2Content.StartOffset && a1Content.StartOffset < a2Content.EndOffset.Value)
-						return true;
+					string modPrefix = $"Mod collision detected while installing mod ({currentMod.Config.ModID})";
+					collision = new ModCollision(destinationActions.lastAction.ModID, ModCollisionSeverity.Clash, $"{modPrefix}: Attempting to move a file to a destination that has been modified by another mod (with different data) (conflicting mod: {destinationActions.lastAction.ModID})");
+					return true;
 				}
 			}
 
+			collision = null;
 			return false;
 		}
 
-		private bool FilesAreDifferent(ModAction<FileReplaceAction> a1, ModAction<FileReplaceAction> a2)
+		public static bool HasCopyCollision(GameModification currentMod, string file, string destinationPath, List<FileModification> modifications, out ModCollision collision)
 		{
-			var a1FilePath = ModUtility.ResolvePath(a1.action.TargetFile, a1.mod, config);
-			var a2FilePath = ModUtility.ResolvePath(a2.action.TargetFile, a2.mod, config);
+			var actions = new ActionCollection(file, currentMod.Config.ModID, modifications);
+			var destinationActions = new ActionCollection(destinationPath, currentMod.Config.ModID, modifications);
 
-			string a1MD5 = MD5Utility.CalculateMD5Hash(a1FilePath);
-			string a2MD5 = MD5Utility.CalculateMD5Hash(a2FilePath);
+			if (actions.moveAction != null && destinationPath != (actions.moveAction as MoveFileModification).DestinationPath)
+				return AddModCollision(currentMod, ModInstallActionEnum.Copy, FileModificationType.Moved, actions.moveAction.ModID, ModCollisionSeverity.Clash, out collision);
 
-			return a1MD5 != a2MD5;
+			if (actions.replaceAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Copy, FileModificationType.Replaced, actions.replaceAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (actions.editAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Copy, FileModificationType.Edited, actions.editAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (actions.deleteAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Copy, FileModificationType.Deleted, actions.deleteAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (destinationActions.lastAction != null && !(new[] { FileModificationType.Moved, FileModificationType.Deleted }).Contains(destinationActions.lastAction.Type))
+			{
+				if (MD5Utility.CalculateMD5Hash(file) != MD5Utility.CalculateMD5Hash(destinationPath))
+				{
+					string modPrefix = $"Mod collision detected while installing mod ({currentMod.Config.ModID})";
+					collision = new ModCollision(currentMod.Config.ModID, ModCollisionSeverity.Clash, $"{modPrefix}: Attempting to copy a file to a destination that has been modified by another mod (with different data) (conflicting mod: {destinationActions.lastAction.ModID})");
+					return true;
+				}
+			}
+
+			collision = null;
+			return false;
+		}
+
+		public static bool HasReplaceCollision(GameModification currentMod, string file, string replacementFile, List<FileModification> modifications, out ModCollision collision)
+		{
+			var actions = new ActionCollection(file, currentMod.Config.ModID, modifications);
+
+			if (actions.moveAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Replace, FileModificationType.Moved, actions.moveAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (actions.replaceAction != null && MD5Utility.CalculateMD5Hash(file) != MD5Utility.CalculateMD5Hash(replacementFile))
+				return AddModCollision(currentMod, ModInstallActionEnum.Replace, FileModificationType.Replaced, actions.replaceAction.ModID, ModCollisionSeverity.Clash, out collision, suffix: "(with different data)");
+
+			if (actions.editAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Replace, FileModificationType.Edited, actions.editAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (actions.deleteAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Replace, FileModificationType.Deleted, actions.deleteAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			collision = null;
+			return false;
+		}
+
+		public static bool HasEditCollision(GameModification currentMod, string file, IWriteContent content, FileWriterUtility fileWriter, List<FileModification> modifications, out ModCollision collision)
+		{
+			var actions = new ActionCollection(file, currentMod.Config.ModID, modifications);
+
+			if (actions.moveAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Edit, FileModificationType.Moved, actions.moveAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (actions.replaceAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Edit, FileModificationType.Replaced, actions.replaceAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (actions.editAction != null && !fileWriter.CanWrite(file, content))
+				return AddModCollision(currentMod, ModInstallActionEnum.Edit, FileModificationType.Edited, actions.editAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			if (actions.deleteAction != null)
+				return AddModCollision(currentMod, ModInstallActionEnum.Edit, FileModificationType.Deleted, actions.deleteAction.ModID, ModCollisionSeverity.Clash, out collision);
+
+			collision = null;
+			return false;
+		}
+
+		private static bool AddModCollision(GameModification mod, ModInstallActionEnum action, FileModificationType collisionReason, string collidingModID, ModCollisionSeverity severity, out ModCollision collision, string suffix = "")
+		{
+			string collisionReasonDescription = GetCollisionDescription(collisionReason);
+			string actionDescription = GetModificationDescription(action);
+
+			return AddModCollision(mod, actionDescription, collisionReasonDescription, collidingModID, severity, out collision, suffix: suffix);
+		}
+
+		private static bool AddModCollision(GameModification mod, string actionDescription, FileModificationType collisionReason, string collidingModID, ModCollisionSeverity severity, out ModCollision collision, string suffix = "")
+		{
+			string collisionReasonDescription = GetCollisionDescription(collisionReason);
+			return AddModCollision(mod, actionDescription, collisionReasonDescription, collidingModID, severity, out collision, suffix: suffix);
+		}
+
+		private static bool AddModCollision(GameModification mod, ModInstallActionEnum action, string collisionReasonDescription, string collidingModID, ModCollisionSeverity severity, out ModCollision collision, string suffix = "")
+		{
+			string actionDescription = GetModificationDescription(action);
+			return AddModCollision(mod, actionDescription, collisionReasonDescription, collidingModID, severity, out collision, suffix: suffix);
+		}
+
+		private static bool AddModCollision(GameModification mod, string actionDescription, string collisionReasonDescription, string collidingModID, ModCollisionSeverity severity, out ModCollision collision, string suffix = "")
+		{
+			string modPrefix = $"Mod collision detected while installing mod ({mod.Config.ModID})";
+
+			collision = new ModCollision(collidingModID, severity, $"{modPrefix}: Attempting to {actionDescription} that has been {collisionReasonDescription} another mod{(string.IsNullOrEmpty(suffix) ? "" : $" {suffix}")} (conflicting mod: {collidingModID})");
+			return true;
+		}
+
+		private static string GetModificationDescription(ModInstallActionEnum action)
+		{
+			switch (action)
+			{
+				case ModInstallActionEnum.Copy:
+					return "copy a file";
+				case ModInstallActionEnum.Delete:
+					return "delete a file";
+				case ModInstallActionEnum.Edit:
+					return "write to a file";
+				case ModInstallActionEnum.Move:
+					return "move a file";
+				case ModInstallActionEnum.Replace:
+					return "replace a file";
+				case ModInstallActionEnum.QuickBMS:
+					return "QuickBMS extract a file";
+			}
+
+			return "perform unknown action to a file";
+		}
+
+		private static string GetCollisionDescription(FileModificationType collisionReason)
+		{
+			switch (collisionReason)
+			{
+				case FileModificationType.Added:
+					return "added by";
+				case FileModificationType.Deleted:
+					return "deleted by";
+				case FileModificationType.Edited:
+					return "written to by";
+				case FileModificationType.Moved:
+					return "moved by";
+				case FileModificationType.Replaced:
+					return "replaced by";
+				case FileModificationType.QuickBMSExtracted:
+					return "QuickBMS extracted by";
+			}
+
+			return "perform unknown action to a file";
 		}
 	}
 }

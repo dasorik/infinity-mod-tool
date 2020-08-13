@@ -5,10 +5,9 @@ using System.Threading.Tasks;
 
 namespace InfinityModTool.Data.InstallActions
 {
-	public class QuickBMSExtractAction : ModInstallAction
+	public class CopyFileAction : ModInstallAction
 	{
-		public string[] TargetFiles;
-		public bool UseAutoMapping;
-		public bool DeleteWhenComplete;
+		public string TargetFile;
+		public string DestinationPath;
 	}
 }

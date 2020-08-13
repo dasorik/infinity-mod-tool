@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
+using System.IO;
 
 namespace InfinityModTool.Utilities
 {
@@ -26,7 +28,16 @@ namespace InfinityModTool.Utilities
 			}
 		}
 
+		static string logFile;
 		static Queue<Log> logs = new Queue<Log>();
+
+		static Logging()
+		{
+			var logDirectory = Path.Combine(Data.Global.APP_DATA_FOLDER, "Logs");
+			logFile = Path.Combine(logDirectory, $"log_{DateTime.Now.ToString("yyyyMMddhhss")}.txt");
+
+			Directory.CreateDirectory(logDirectory);
+		}
 
 		public static void LogMessage(string message, LogSeverity severity)
 		{
@@ -36,7 +47,23 @@ namespace InfinityModTool.Utilities
 					logs.Dequeue();
 
 				logs.Enqueue(new Log(message, severity));
+				File.AppendAllText(logFile, $"{GetLogPrefix(severity)} {message}\n");
 			}
+		}
+
+		static string GetLogPrefix(LogSeverity severity)
+		{
+			switch (severity)
+			{
+				case LogSeverity.Info:
+					return "[INFO]    ";
+				case LogSeverity.Warning:
+					return "[WARNING] ";
+				case LogSeverity.Error:
+					return "[ERROR]   ";
+			}
+
+			return string.Empty;
 		}
 
 		public static IEnumerable<Log> GetLogs()

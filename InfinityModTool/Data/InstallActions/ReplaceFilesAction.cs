@@ -5,9 +5,11 @@ using System.Threading.Tasks;
 
 namespace InfinityModTool.Data.InstallActions
 {
-	public class FileCopyAction : ModInstallAction
+	public class ReplaceFilesAction : ModInstallAction
 	{
-		public string TargetFile;
+		public string TargetDirectory;
+		public string FileFilter;
+		public bool IncludeSubfolders;
 		public string DestinationPath;
 	}
 }

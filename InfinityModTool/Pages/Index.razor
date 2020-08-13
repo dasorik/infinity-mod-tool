@@ -308,18 +308,18 @@
                 );
                 break;
             case Enums.InstallationStatus.UnresolvableConflict:
-                var conflictingMods = installStatus.conflicts.Select(m => m.mod.Config.DisplayName);
+                var conflict = installStatus.conflicts.First();
                 ShowAlertDialog(
                     title: "Mod conflict detected",
-                    message: $"The mod being installed conflicts with the following installed mod{(conflictingMods.Count() > 0 ? "s" : "")}, and has not been installed: {string.Join(", ", conflictingMods)}",
+                    message: $"A conflict was detected while installing the mod. The selected mod has not been installed. \nReason: {conflict.description}",
                     level: AlertLevel.Error
                 );
                 break;
             case Enums.InstallationStatus.ResolvableConflict:
-                var potentialIssues = installStatus.conflicts.Select(m => m.mod.Config.DisplayName);
+                var potentialConflict = installStatus.conflicts.First();
                 ShowConfirmDialog(
-                    title: $"Potential conflict{(potentialIssues.Count() > 0 ? "s" : "")} detected",
-                    message: $"The mod being installed has potential conflicts with the following installed mod{(potentialIssues.Count() > 0 ? "s" : "")}: {string.Join(", ", potentialIssues)}\nInstall mod anyway?",
+                    title: $"Potential conflict detected",
+                    message: $"The mod being installed has potential conflicts with the following installed mod: {potentialConflict.modID} \nInstall mod anyway?",
                     level: AlertLevel.Warning,
                     confirmAction: () => InstallUninstall(installContext, true)
                 );

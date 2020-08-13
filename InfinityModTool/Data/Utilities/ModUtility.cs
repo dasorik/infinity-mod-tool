@@ -10,6 +10,17 @@ using InfinityModTool.Data.InstallActions;
 using System.Reflection;
 using InfinityModTool.Enums;
 using InfinityModTool.Models;
+using System.Text.RegularExpressions;
+using Microsoft.Extensions.Hosting;
+using System.Net;
+using System.Drawing;
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using InfinityModTool.Data.Models;
+using Newtonsoft.Json;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace InfinityModTool.Utilities
 {
@@ -18,9 +29,11 @@ namespace InfinityModTool.Utilities
 #if DEBUG
 		const string RESERVED_FILES = "..\\..\\..\\reserved_files.txt";
 		const string CHARACTER_ID_NAMES = "..\\..\\..\\character_ids.json";
+		const string AUTO_MAPPING_PATH = "..\\..\\..\\automapping.json";
 #else
 		const string RESERVED_FILES = "reserved_files.txt";
 		const string CHARACTER_ID_NAMES = "character_ids.json";
+		const string AUTO_MAPPING_PATH = "automapping.json";
 #endif
 
 		public class ReservedFileModificationException : Exception
@@ -29,17 +42,21 @@ namespace InfinityModTool.Utilities
 		}
 
 		private Configuration configuration;
+		QuickBMSAutoMappingCollection autoMappings;
 		HashSet<string> reservedFiles;
+
+		FileWriterUtility fileWriter;
+		ModActionCollection modActions;
+
 		string tempFolder;
 
-		public ModCollision[] conflicts = new ModCollision[0];
+		public List<ModCollision> conflicts = new List<ModCollision>();
 		public readonly List<FileModification> modifications = new List<FileModification>();
 
 		private List<string> decompiledFiles = new List<string>();
 		private List<string> extractedFiles = new List<string>();
-		private List<string> movedFiles = new List<string>();
 		private List<string> deletedFiles = new List<string>();
-		private List<string> replacedFiles = new List<string>();
+		private List<string> backedUpFiles = new List<string>();
 
 		public ModUtility(Configuration configuration)
 		{
@@ -50,11 +67,13 @@ namespace InfinityModTool.Utilities
 		{
 			return await ApplyChangesInternal(mods, ignoreWarnings, false);
 		}
-		
+
 		private async Task<InstallationStatus> ApplyChangesInternal(GameModification[] mods, bool ignoreWarnings, bool reverting)
 		{
 			tempFolder = CreateTempFolder();
 			reservedFiles = GetReservedFiles();
+			autoMappings = GetAutoMappings();
+			fileWriter = new FileWriterUtility();
 
 			// Start with a blank canvas
 			RemoveAllChanges(configuration);
@@ -64,43 +83,24 @@ namespace InfinityModTool.Utilities
 
 			try
 			{
-				var modActions = GetModActions(mods);
-				var collisionTracker = new ModCollisionTracker(configuration);
-
-				conflicts = collisionTracker.CheckForPotentialModCollisions(mods.Last(), modActions);
-
-				if (conflicts.Length > 0)
-					return conflicts.Any(c => c.severity == ModCollisionSeverity.Clash) ? InstallationStatus.UnresolvableConflict : InstallationStatus.ResolvableConflict;
+				modActions = GetModActions(mods);
 
 				// Write any data as required to the virtualreader file, make sure to offset by bytesWritten if needed
-				var fileWriter = new FileWriterUtility();
 
-				foreach (var extractAction in modActions.extractActions)
-					await QuickBMSExtract(extractAction, tempFolder);
+				foreach (var action in modActions.extractActions)
+					await QuickBMSExtract(action, tempFolder, action.action.UseAutoMapping);
 
-				foreach (var decompileAction in modActions.decompileActions)
-					await UnluacDecompile(decompileAction, tempFolder);
+				foreach (var action in modActions.decompileActions)
+					await UnluacDecompile(action, tempFolder);
 
-				foreach (var fileCopyAction in modActions.fileCopyActions)
-					CopyFile(fileCopyAction);
+				var actionStatus = PerformActions(modActions);
 
-				foreach (var fileWriteAction in modActions.fileWriteActions)
-					WriteToFile(fileWriteAction, fileWriter);
-
-				foreach (var fileReplaceAction in modActions.fileReplaceActions)
-					ReplaceFile(fileReplaceAction);
-
-				foreach (var fileMoveAction in modActions.fileMoveActions)
-					MoveFile(fileMoveAction);
-
-				foreach (var fileDeleteAction in modActions.fileDeleteActions)
-					DeleteFile(fileDeleteAction);
+				if (actionStatus != InstallationStatus.Success)
+					return actionStatus;
 			}
 			catch (Exception ex)
 			{
 				Logging.LogMessage(ex.ToString(), Logging.LogSeverity.Error);
-
-				Directory.Delete(tempFolder, true);
 
 				if (reverting)
 				{
@@ -115,47 +115,92 @@ namespace InfinityModTool.Utilities
 					return InstallationStatus.RolledBackError;
 				}
 			}
+			finally
+			{
+				Directory.Delete(tempFolder, true);
+			}
 
-			Directory.Delete(tempFolder, true);
+			return InstallationStatus.Success;
+		}
+
+		private InstallationStatus PerformActions(ModActionCollection modActions)
+		{
+			foreach (var action in modActions.fileCopyActions)
+			{
+				var status = CopyFile(action);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			foreach (var action in modActions.bulkFileCopyActions)
+			{
+				var status = BulkCopyFiles(action);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			foreach (var action in modActions.fileReplaceActions)
+			{
+				var status = ReplaceFile(action);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			foreach (var action in modActions.bulkFileReplaceActions)
+			{
+				var status = BulkReplaceFiles(action);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			foreach (var action in modActions.fileWriteActions)
+			{
+				var status = WriteToFile(action);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			foreach (var action in modActions.fileMoveActions)
+			{
+				var status = MoveFile(action);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			foreach (var action in modActions.bulkFileMoveActions)
+			{
+				var status = BulkMoveFiles(action);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			foreach (var action in modActions.fileDeleteActions)
+			{
+				var status = DeleteFile(action);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
 
 			return InstallationStatus.Success;
 		}
 
 		public static ModActionCollection GetModActions(GameModification[] mods)
 		{
-			// Custom actions
-			var extractActions = new List<ModAction<QuickBMSExtractAction>>();
-			var decompileActions = new List<ModAction<UnluacDecompileAction>>();
-			var fileMoveActions = new List<ModAction<FileMoveAction>>();
-			var fileDeleteActions = new List<ModAction<FileDeleteAction>>();
-			var fileWriteActions = new List<ModAction<FileWriteAction>>();
-			var fileReplaceActions = new List<ModAction<FileReplaceAction>>();
-			var fileCopyActions = new List<ModAction<FileCopyAction>>();
+			var collection = new ModActionCollection();
 
 			// We need to collate these steps, so we can minimize collision issues
 			foreach (var mod in mods)
-			{
-				var installActions = (mod.Config.InstallActions ?? new ModInstallAction[] { });
+				collection.AddActionsFromMod(mod);
 
-				extractActions.AddRange(installActions.Where(a => a.Action.SafeEquals("QuickBMSExtract", ignoreCase: true)).Select(a => new ModAction<QuickBMSExtractAction>(mod, a as QuickBMSExtractAction)));
-				decompileActions.AddRange(installActions.Where(a => a.Action.SafeEquals("UnluacDecompile", ignoreCase: true)).Select(a => new ModAction<UnluacDecompileAction>(mod, a as UnluacDecompileAction)));
-				fileMoveActions.AddRange(installActions.Where(a => a.Action.SafeEquals("MoveFile", ignoreCase: true)).Select(a => new ModAction<FileMoveAction>(mod, a as FileMoveAction)));
-				fileDeleteActions.AddRange(installActions.Where(a => a.Action.SafeEquals("DeleteFiles", ignoreCase: true)).Select(a => new ModAction<FileDeleteAction>(mod, a as FileDeleteAction)));
-				fileWriteActions.AddRange(installActions.Where(a => a.Action.SafeEquals("WriteToFile", ignoreCase: true)).Select(a => new ModAction<FileWriteAction>(mod, a as FileWriteAction)));
-				fileReplaceActions.AddRange(installActions.Where(a => a.Action.SafeEquals("ReplaceFile", ignoreCase: true)).Select(a => new ModAction<FileReplaceAction>(mod, a as FileReplaceAction)));
-				fileCopyActions.AddRange(installActions.Where(a => a.Action.SafeEquals("CopyFile", ignoreCase: true)).Select(a => new ModAction<FileCopyAction>(mod, a as FileCopyAction)));
-			}
-
-			return new ModActionCollection()
-			{
-				extractActions = extractActions,
-				decompileActions = decompileActions,
-				fileMoveActions = fileMoveActions,
-				fileDeleteActions = fileDeleteActions,
-				fileWriteActions = fileWriteActions,
-				fileReplaceActions = fileReplaceActions,
-				fileCopyActions = fileCopyActions
-			};
+			return collection;
 		}
 
 		private string CreateTempFolder()
@@ -170,7 +215,7 @@ namespace InfinityModTool.Utilities
 			return tempDirectory;
 		}
 
-		private async Task QuickBMSExtract(ModAction<QuickBMSExtractAction> modAction, string tempFolder)
+		private async Task<InstallationStatus> QuickBMSExtract(ModAction<QuickBMSExtractAction> modAction, string tempFolder, bool autoUnpack)
 		{
 			foreach (var file in modAction.action.TargetFiles)
 			{
@@ -190,14 +235,31 @@ namespace InfinityModTool.Utilities
 				var newFolder = Path.Combine(tempFolder, Path.GetFileNameWithoutExtension(fileInfo.Name));
 				var newFiles = Directory.GetFiles(newFolder, "*", SearchOption.AllDirectories);
 
+				extractedFiles.Add(physicalTargetPath);
+
 				foreach (var newFile in newFiles)
 				{
 					var targetPath = Path.Combine(fileInfo.Directory.FullName, newFile.Substring(newFolder.Length).TrimStart('\\').TrimStart('/'));
-					MoveFile_Internal(newFile, targetPath);
+					MoveFile_Internal(newFile, targetPath, modAction.mod);
 				}
 
-				extractedFiles.Add(physicalTargetPath);
+				if (autoUnpack && HasAutoMapping(physicalTargetPath, configuration, out var autoMapping))
+				{
+					var autoUnpackActions = new ModActionCollection();
+					autoUnpackActions.AddActions(modAction.mod, autoMapping.Actions);
+
+					PerformActions(autoUnpackActions);
+				}
+
+				// Allow these files to be automatically deleted when finished with
+				if (modAction.action.DeleteWhenComplete)
+				{
+					DeleteFile_Internal(physicalTargetPath, modAction.mod);
+					deletedFiles.Add(physicalTargetPath);
+				}
 			}
+
+			return InstallationStatus.Success;
 		}
 
 		private async Task UnluacDecompile(ModAction<UnluacDecompileAction> modAction, string tempFolder)
@@ -218,77 +280,156 @@ namespace InfinityModTool.Utilities
 
 				// Decompile the file, and replace the file
 				await UnluacUtility.Decompile(physicalTargetPath, targetPath);
-				MoveFile_Internal(targetPath, physicalTargetPath);
+				MoveFile_Internal(targetPath, physicalTargetPath, modAction.mod);
 
 				decompiledFiles.Add(physicalTargetPath);
 			}
 		}
 
-		private void MoveFile(ModAction<FileMoveAction> modAction)
+		private InstallationStatus MoveFile(ModAction<MoveFileAction> modAction)
 		{
 			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod, configuration);
 			var physicalDestinationPath = ResolvePath(modAction.action.DestinationPath, modAction.mod, configuration);
 
-			// Check if this has already been moved
-			if (movedFiles.Contains(physicalTargetPath))
-				return;
-
-			if (!File.Exists(physicalTargetPath))
-				throw new Exception($"Unable to find target path: {physicalTargetPath}");
-
-			MoveFile_Internal(physicalTargetPath, physicalDestinationPath);
-
-			movedFiles.Add(physicalTargetPath);
+			return MoveFile(physicalTargetPath, physicalDestinationPath, modAction.mod);
 		}
 
-		private void ReplaceFile(ModAction<FileReplaceAction> modAction)
+		private InstallationStatus BulkMoveFiles(ModAction<MoveFilesAction> modAction)
+		{
+			var physicalDirectoryPath = ResolvePath(modAction.action.TargetDirectory, modAction.mod, configuration);
+			var physicalDestinationPath = ResolvePath(modAction.action.DestinationPath, modAction.mod, configuration);
+
+			foreach (var file in GetFilteredFilesFromDirectory(physicalDirectoryPath, modAction.action.FileFilter, modAction.action.IncludeSubfolders))
+			{
+				var status = MoveFile(file, Path.Combine(physicalDestinationPath, new FileInfo(file).Name), modAction.mod);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			return InstallationStatus.Success;
+		}
+
+		private InstallationStatus MoveFile(string targetFile, string destinationPath, GameModification mod)
+		{
+			// Have we already moved this file to the exact same destination?
+			if (HasMovedFileToSameDestination(targetFile, destinationPath))
+				return InstallationStatus.Success;
+
+			if (ModCollisionTracker.HasMoveCollision(mod, targetFile, destinationPath, modifications, out var collision))
+				return HandleCollision(collision);
+
+			if (!File.Exists(targetFile))
+				throw new Exception($"Unable to find target path: {targetFile}");
+
+			MoveFile_Internal(targetFile, destinationPath, mod);
+			return InstallationStatus.Success;
+		}
+
+		private bool HasMovedFileToSameDestination(string targetFile, string destinationPath)
+		{
+			var fileMoves = modifications.Where(m => m.FilePath == targetFile && m.Type == FileModificationType.Moved);
+
+			if (fileMoves.Count() == 0)
+				return false;
+
+			return fileMoves.Select(m => m as MoveFileModification).LastOrDefault(m => m.DestinationPath == destinationPath) != null;
+		}
+
+		private InstallationStatus ReplaceFile(ModAction<ReplaceFileAction> modAction)
 		{
 			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod, configuration);
 			var physicalReplacementPath = ResolvePath(modAction.action.ReplacementFile, modAction.mod, configuration);
 
-			// Check if this has already been replaced
-			if (replacedFiles.Contains(physicalTargetPath))
-				return;
-
-			if (!File.Exists(physicalTargetPath))
-				throw new Exception($"Unable to find target path: {physicalTargetPath}");
-
-			MoveFile_Internal(physicalReplacementPath, physicalTargetPath);
-
-			replacedFiles.Add(physicalTargetPath);
+			return ReplaceFile(physicalReplacementPath, physicalTargetPath, modAction.mod);
 		}
 
-		private void CopyFile(ModAction<FileCopyAction> modAction)
+		private InstallationStatus BulkReplaceFiles(ModAction<ReplaceFilesAction> modAction)
+		{
+			var physicalDirectoryPath = ResolvePath(modAction.action.TargetDirectory, modAction.mod, configuration);
+			var physicalDestinationPath = ResolvePath(modAction.action.DestinationPath, modAction.mod, configuration);
+
+			foreach (var file in GetFilteredFilesFromDirectory(physicalDirectoryPath, modAction.action.FileFilter, modAction.action.IncludeSubfolders))
+			{
+				var status = ReplaceFile(file, Path.Combine(physicalDestinationPath, new FileInfo(file).Name), modAction.mod);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			return InstallationStatus.Success;
+		}
+
+		private InstallationStatus ReplaceFile(string replacementFile, string targetFile, GameModification mod)
+		{
+			if (ModCollisionTracker.HasReplaceCollision(mod, targetFile, replacementFile, modifications, out var collision))
+				return HandleCollision(collision);
+			
+			if (!File.Exists(targetFile))
+				throw new Exception($"Unable to find target path: {targetFile}");
+
+			CopyFile_Internal(replacementFile, targetFile, mod);
+			return InstallationStatus.Success;
+		}
+
+		private InstallationStatus CopyFile(ModAction<CopyFileAction> modAction)
 		{
 			var physicalTargetPath = ResolvePath(modAction.action.TargetFile, modAction.mod, configuration);
 			var physicalDestinationPath = ResolvePath(modAction.action.DestinationPath, modAction.mod, configuration);
 
-			if (!File.Exists(physicalTargetPath))
-				throw new Exception($"Unable to find target path: {physicalTargetPath}");
-
-			CopyFile_Internal(physicalTargetPath, physicalDestinationPath);
+			return CopyFile(physicalTargetPath, physicalDestinationPath, modAction.mod);
 		}
 
-		private void DeleteFile(ModAction<FileDeleteAction> modAction)
+		private InstallationStatus BulkCopyFiles(ModAction<CopyFilesAction> modAction)
+		{
+			var physicalDirectoryPath = ResolvePath(modAction.action.TargetDirectory, modAction.mod, configuration);
+			var physicalDestinationPath = ResolvePath(modAction.action.DestinationPath, modAction.mod, configuration);
+
+			foreach (var file in GetFilteredFilesFromDirectory(physicalDirectoryPath, modAction.action.FileFilter, modAction.action.IncludeSubfolders))
+			{
+				var status = CopyFile(file, Path.Combine(physicalDestinationPath, new FileInfo(file).Name), modAction.mod);
+
+				if (status != InstallationStatus.Success)
+					return status;
+			}
+
+			return InstallationStatus.Success;
+		}
+
+		private InstallationStatus CopyFile(string targetFile, string destinationPath, GameModification mod)
+		{
+			if (ModCollisionTracker.HasCopyCollision(mod, targetFile, destinationPath, modifications, out var collision))
+				return HandleCollision(collision);
+
+			if (!File.Exists(targetFile))
+				throw new Exception($"Unable to find target path: {targetFile}");
+
+			// Copying files occurs near the start, and should not cause conflicts
+
+			CopyFile_Internal(targetFile, destinationPath, mod);
+			return InstallationStatus.Success;
+		}
+
+		private InstallationStatus DeleteFile(ModAction<DeleteFilesAction> modAction)
 		{
 			foreach (var file in modAction.action.TargetFiles)
 			{
 				var physicalTargetPath = ResolvePath(file, modAction.mod, configuration);
 
 				// Check if this has already been deleted
-				if (deletedFiles.Contains(physicalTargetPath))
-					return;
+				if (deletedFiles.Contains(physicalTargetPath) || !File.Exists(physicalTargetPath))
+					continue;
 
-				if (!File.Exists(physicalTargetPath))
-					throw new Exception($"Unable to find target path: {physicalTargetPath}");
-
-				DeleteFile_Internal(physicalTargetPath);
+				DeleteFile_Internal(physicalTargetPath, modAction.mod);
 
 				deletedFiles.Add(physicalTargetPath);
 			}
+
+			// Delete actions do not currently cause collisions
+			return InstallationStatus.Success;
 		}
 
-		private void WriteToFile(ModAction<FileWriteAction> modAction, FileWriterUtility fileWriter)
+		private InstallationStatus WriteToFile(ModAction<WriteToFileAction> modAction)
 		{
 			foreach (var content in modAction.action.Content)
 			{
@@ -303,14 +444,17 @@ namespace InfinityModTool.Utilities
 
 				var dataToWrite = content.Text ?? File.ReadAllText(filePath);
 
+				if (ModCollisionTracker.HasEditCollision(modAction.mod, physicalTargetPath, content, fileWriter, modifications, out var collision))
+					return HandleCollision(collision);
+
 				if (IsReservedFile(physicalTargetPath))
 				{
-					modifications.Add(new FileModification(GetRelativePath(physicalTargetPath), FileModificationType.Edited, true));
+					modifications.Add(new EditFileModification(physicalTargetPath, true, modAction.mod.Config.ModID));
 					BackupFile(physicalTargetPath);
 				}
 				else
 				{
-					modifications.Add(new FileModification(GetRelativePath(physicalTargetPath), FileModificationType.Edited, false));
+					modifications.Add(new EditFileModification(physicalTargetPath, false, modAction.mod.Config.ModID));
 				}
 
 				if (content.EndOffset.HasValue)
@@ -318,63 +462,71 @@ namespace InfinityModTool.Utilities
 				else
 					fileWriter.WriteToFile(physicalTargetPath, dataToWrite, content.StartOffset, !content.Replace, false);
 			}
+
+			return InstallationStatus.Success;
 		}
 
-		private void MoveFile_Internal(string targetPath, string destinationPath)
+		private void MoveFile_Internal(string targetPath, string destinationPath, GameModification mod)
 		{
 			if (IsReservedFile(targetPath))
 			{
-				modifications.Add(new FileModification(GetRelativePath(targetPath), FileModificationType.Moved, true));
+				modifications.Add(new MoveFileModification(targetPath, destinationPath, true, mod.Config.ModID));
 				BackupFile(targetPath);
 			}
 			else
 			{
-				modifications.Add(new FileModification(GetRelativePath(targetPath), FileModificationType.Moved, false));
+				modifications.Add(new MoveFileModification(targetPath, destinationPath, false, mod.Config.ModID));
 			}
 
 			if (IsReservedFile(destinationPath))
 			{
-				modifications.Add(new FileModification(GetRelativePath(destinationPath), FileModificationType.Replaced, true));
+				modifications.Add(new ReplaceFileModification(destinationPath, true, mod.Config.ModID));
 				BackupFile(destinationPath);
 			}
 			else
 			{
-				modifications.Add(new FileModification(GetRelativePath(destinationPath), FileModificationType.Added, false));
+				modifications.Add(new AddFileModification(destinationPath, false, mod.Config.ModID));
 			}
 
 			Directory.CreateDirectory(new FileInfo(destinationPath).DirectoryName);
 			File.Move(targetPath, destinationPath, true);
 		}
 
-		private void CopyFile_Internal(string targetPath, string destinationPath)
+		private void CopyFile_Internal(string targetPath, string destinationPath, GameModification mod)
 		{
 			if (IsReservedFile(destinationPath))
 			{
-				modifications.Add(new FileModification(GetRelativePath(destinationPath), FileModificationType.Replaced, true));
+				modifications.Add(new ReplaceFileModification(destinationPath, true, mod.Config.ModID));
 				BackupFile(destinationPath);
 			}
 			else
 			{
-				modifications.Add(new FileModification(GetRelativePath(destinationPath), FileModificationType.Added, false));
+				modifications.Add(new AddFileModification(destinationPath, false, mod.Config.ModID));
 			}
 
 			Directory.CreateDirectory(new FileInfo(destinationPath).DirectoryName);
 			File.Copy(targetPath, destinationPath, true);
 		}
 
-		private void DeleteFile_Internal(string targetPath)
+		private void DeleteFile_Internal(string targetPath, GameModification mod)
 		{
 			if (IsReservedFile(targetPath))
 			{
-				modifications.Add(new FileModification(GetRelativePath(targetPath), FileModificationType.Deleted, true));
+				modifications.Add(new DeleteFileModification(targetPath, true, mod.Config.ModID));
 				BackupFile(targetPath);
 			}
 			else
 			{
-				modifications.Add(new FileModification(GetRelativePath(targetPath), FileModificationType.Deleted, false));
+				modifications.Add(new DeleteFileModification(targetPath, false, mod.Config.ModID));
 			}
 
 			File.Delete(targetPath);
+		}
+
+		private IEnumerable<string> GetFilteredFilesFromDirectory(string folder, string pattern, bool includeSubFolders)
+		{
+			var files = Directory.GetFiles(folder, "*", includeSubFolders ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
+			return files.Where(f => Regex.IsMatch(new FileInfo(f).Name, pattern));
 		}
 
 		private string GetRelativePath(string path)
@@ -387,8 +539,14 @@ namespace InfinityModTool.Utilities
 			string relativePath = path.Substring(configuration.SteamInstallationPath.Length).Trim('\\').Trim('.');
 			string backupPath = Path.Combine(Global.APP_DATA_FOLDER, "Backup", relativePath);
 
+			// Prevent issues from occuring if we modify an already backed-up file
+			if (File.Exists(backupPath))
+				return;
+
 			Directory.CreateDirectory(new FileInfo(backupPath).DirectoryName);
 			File.Copy(path, backupPath, true);
+
+			backedUpFiles.Add(relativePath);
 		}
 
 		private HashSet<string> GetReservedFiles()
@@ -409,16 +567,8 @@ namespace InfinityModTool.Utilities
 
 		public static ListOption[] GetIDNameListOptions()
 		{
-			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-			var idNamePath = Path.Combine(executionPath, CHARACTER_ID_NAMES);
-
-			Logging.LogMessage($"Reading ID name from: {idNamePath}", Logging.LogSeverity.Info);
-
+			// Temporarily removed...
 			return null;
-			//var fileData = File.ReadAllText(idNamePath);
-			//var idNames = Newtonsoft.Json.JsonConvert.DeserializeObject<IDNames>(fileData);
-
-			//return idNames.CharacterIDs.Select(id => new ListOption(id.ID, id.DisplayName)).ToArray();
 		}
 
 		private bool IsReservedFile(string path)
@@ -432,12 +582,22 @@ namespace InfinityModTool.Utilities
 				return null;
 
 			if (path.StartsWith("[GAME]", StringComparison.InvariantCultureIgnoreCase))
-				return Path.Combine(config.SteamInstallationPath, path.Substring(6, path.Length - 6).TrimStart('\\').TrimStart('/'));
+				return ResolveGamePath(path, config);
 
 			if (path.StartsWith("[MOD]", StringComparison.InvariantCultureIgnoreCase))
-				return Path.Combine(mod.Config.ModCachePath, path.Substring(5, path.Length - 5).TrimStart('\\').TrimStart('/'));
+				return ResolveModPath(path, mod);
 
 			throw new Exception("Supplied path must begin with the following: [GAME], [MOD]");
+		}
+
+		public static string ResolveGamePath(string path, Configuration config)
+		{
+			return Path.Combine(config.SteamInstallationPath, path.Substring(6, path.Length - 6).TrimStart('\\').TrimStart('/'));
+		}
+
+		public static string ResolveModPath(string path, GameModification mod)
+		{
+			return Path.Combine(mod.Config.ModCachePath, path.Substring(5, path.Length - 5).TrimStart('\\').TrimStart('/'));
 		}
 
 		public void RemoveAllChanges(Configuration configuration)
@@ -469,5 +629,37 @@ namespace InfinityModTool.Utilities
 				File.Delete(file);
 		}
 
+		private InstallationStatus HandleCollision(ModCollision collision)
+		{
+			conflicts.Add(collision);
+			return collision.severity == ModCollisionSeverity.Clash ? InstallationStatus.UnresolvableConflict : InstallationStatus.ResolvableConflict;
+		}
+
+		private QuickBMSAutoMappingCollection GetAutoMappings()
+		{
+			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+			var filePath = Path.Combine(executionPath, AUTO_MAPPING_PATH);
+			var json = File.ReadAllText(filePath);
+
+			return JsonConvert.DeserializeObject<QuickBMSAutoMappingCollection>(json, new ModInstallActionConverter());
+		}
+
+		private bool HasAutoMapping(string resourceFile, Configuration config, out QuickBMSAutoMapping autoMapping)
+		{
+			foreach (var map in autoMappings.QuickBMSAutoMappings)
+			{
+				var files = Directory.GetFiles(ModUtility.ResolveGamePath(map.TargetDirectory, config));
+				var filteredFiles = files.Where(f => Regex.IsMatch(f, map.FileFilter));
+
+				if (filteredFiles.Any(f => f.Equals(resourceFile, StringComparison.InvariantCultureIgnoreCase)))
+				{
+					autoMapping = map;
+					return true;
+				}
+			}
+
+			autoMapping = null;
+			return false;
+		}
 	}
 }

@@ -5,8 +5,9 @@ using System.Threading.Tasks;
 
 namespace InfinityModTool.Data.InstallActions
 {
-	public class FileDeleteAction : ModInstallAction
+	public class ReplaceFileAction : ModInstallAction
 	{
-		public string[] TargetFiles;
+		public string TargetFile;
+		public string ReplacementFile;
 	}
 }

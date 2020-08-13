@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace InfinityModTool.Data.InstallActions
 {
-	public class FileMoveAction : ModInstallAction
+	public class MoveFileAction : ModInstallAction
 	{
 		public string TargetFile;
 		public string DestinationPath;

@@ -9,13 +9,13 @@ namespace InfinityModTool.Models
 {
 	public class ModCollision
 	{
-		public readonly GameModification mod;
+		public readonly string modID;
 		public readonly ModCollisionSeverity severity;
 		public readonly string description;
 
-		public ModCollision(GameModification mod, ModCollisionSeverity severity, string description)
+		public ModCollision(string modID, ModCollisionSeverity severity, string description)
 		{
-			this.mod = mod;
+			this.modID = modID;
 			this.severity = severity;
 			this.description = description;
 		}

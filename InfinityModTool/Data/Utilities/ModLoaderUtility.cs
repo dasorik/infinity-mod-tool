@@ -6,6 +6,7 @@ using System;
 using InfinityModTool.Data.InstallActions;
 using InfinityModTool.Enums;
 using InfinityModTool.Pages;
+using InfinityModTool.Utilities;
 
 namespace InfinityModTool.Data.Utilities
 {
@@ -115,6 +116,9 @@ namespace InfinityModTool.Data.Utilities
 					if (string.IsNullOrEmpty(modData.ModID))
 						return ModLoadStatus.ConfigInvalid;
 
+					if (modData.Version < 2)
+						return ModLoadStatus.UnsupportedVersion;
+
 					if (modData.Version > 2)
 						return ModLoadStatus.UnsupportedVersion;
 
@@ -137,6 +141,7 @@ namespace InfinityModTool.Data.Utilities
 			}
 			catch (Exception ex)
 			{
+				Logging.LogMessage(ex.ToString(), Logging.LogSeverity.Error);
 				return ModLoadStatus.UnspecifiedFailure;
 			}
 			finally
@@ -156,16 +161,16 @@ namespace InfinityModTool.Data.Utilities
 
 			foreach (var action in configuration.InstallActions)
 			{
-				if (action is FileMoveAction)
-					result &= CheckFileMoveAction(action as FileMoveAction, loadErrors);
-				else if (action is FileCopyAction)
-					result &= CheckFileCopyAction(action as FileCopyAction, loadErrors);
-				else if (action is FileDeleteAction)
-					result &= CheckFileDeleteAction(action as FileDeleteAction, loadErrors);
-				else if (action is FileReplaceAction)
-					result &= CheckFileReplaceAction(action as FileReplaceAction, loadErrors);
-				else if (action is FileWriteAction)
-					result &= CheckFileWriteAction(action as FileWriteAction, loadErrors);
+				if (action is MoveFileAction)
+					result &= CheckFileMoveAction(action as MoveFileAction, loadErrors);
+				else if (action is CopyFileAction)
+					result &= CheckFileCopyAction(action as CopyFileAction, loadErrors);
+				else if (action is DeleteFilesAction)
+					result &= CheckFileDeleteAction(action as DeleteFilesAction, loadErrors);
+				else if (action is ReplaceFileAction)
+					result &= CheckFileReplaceAction(action as ReplaceFileAction, loadErrors);
+				else if (action is WriteToFileAction)
+					result &= CheckFileWriteAction(action as WriteToFileAction, loadErrors);
 				else if (action is QuickBMSExtractAction)
 					result &= CheckQuickBMSExtractAction(action as QuickBMSExtractAction, loadErrors);
 				else if (action is UnluacDecompileAction)
@@ -175,7 +180,7 @@ namespace InfinityModTool.Data.Utilities
 			return result;
 		}
 
-		static bool CheckFileMoveAction(FileMoveAction action, List<string> loadErrors)
+		static bool CheckFileMoveAction(MoveFileAction action, List<string> loadErrors)
 		{
 			// Files can only be moved into the game folder
 			if (!ValidGameFilePath(action.DestinationPath))
@@ -194,7 +199,7 @@ namespace InfinityModTool.Data.Utilities
 			return !string.IsNullOrWhiteSpace(action.TargetFile) && !string.IsNullOrWhiteSpace(action.DestinationPath);
 		}
 
-		static bool CheckFileCopyAction(FileCopyAction action, List<string> loadErrors)
+		static bool CheckFileCopyAction(CopyFileAction action, List<string> loadErrors)
 		{
 			// Files can only be copied into the game folder
 			if (!ValidGameFilePath(action.DestinationPath))
@@ -213,7 +218,7 @@ namespace InfinityModTool.Data.Utilities
 			return !string.IsNullOrWhiteSpace(action.TargetFile) && !string.IsNullOrWhiteSpace(action.DestinationPath);
 		}
 
-		static bool CheckFileDeleteAction(FileDeleteAction action, List<string> loadErrors)
+		static bool CheckFileDeleteAction(DeleteFilesAction action, List<string> loadErrors)
 		{
 			// Can only delete files in the game path
 			if (!action.TargetFiles.All(f => ValidGameFilePath(f)))
@@ -225,7 +230,7 @@ namespace InfinityModTool.Data.Utilities
 			return action.TargetFiles.All(s => !string.IsNullOrWhiteSpace(s));
 		}
 
-		static bool CheckFileReplaceAction(FileReplaceAction action, List<string> loadErrors)
+		static bool CheckFileReplaceAction(ReplaceFileAction action, List<string> loadErrors)
 		{
 			// The replacement file MUST be from the mods folder
 			if (!ValidModFilePath(action.ReplacementFile))
@@ -244,7 +249,7 @@ namespace InfinityModTool.Data.Utilities
 			return !string.IsNullOrWhiteSpace(action.TargetFile) && !string.IsNullOrWhiteSpace(action.ReplacementFile);
 		}
 
-		static bool CheckFileWriteAction(FileWriteAction action, List<string> loadErrors)
+		static bool CheckFileWriteAction(WriteToFileAction action, List<string> loadErrors)
 		{
 			if (action.Content is null)
 			{

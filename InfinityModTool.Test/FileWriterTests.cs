@@ -39,7 +39,7 @@ namespace InfinityModTool.Test
 			var write = fileWriter.WriteToFile(tempFile, "Test", 5, true, false);
 
 			Assert.AreEqual(4, write.bytesWritten);
-			Assert.AreEqual(5, write.offset);
+			Assert.AreEqual(5, write.localStartOffset);
 		}
 
 		[Test]
@@ -49,10 +49,10 @@ namespace InfinityModTool.Test
 			var write2 = fileWriter.WriteToFile(tempFile, "Test2", 10, true, false);
 
 			Assert.AreEqual(5, write.bytesWritten);
-			Assert.AreEqual(7, write.offset);
+			Assert.AreEqual(7, write.localStartOffset);
 
 			Assert.AreEqual(5, write2.bytesWritten);
-			Assert.AreEqual(10, write2.offset);
+			Assert.AreEqual(10, write2.localStartOffset);
 		}
 
 		[Test]
@@ -62,10 +62,10 @@ namespace InfinityModTool.Test
 			var write2 = fileWriter.WriteToFile(tempFile, "Test2", 7, true, false);
 
 			Assert.AreEqual(5, write.bytesWritten);
-			Assert.AreEqual(10, write.offset);
+			Assert.AreEqual(10, write.localStartOffset);
 
 			Assert.AreEqual(5, write2.bytesWritten);
-			Assert.AreEqual(7, write2.offset);
+			Assert.AreEqual(7, write2.localStartOffset);
 		}
 
 		[Test]
@@ -139,7 +139,7 @@ namespace InfinityModTool.Test
 
 			Assert.AreEqual(4, write.bytesWritten);
 			Assert.AreEqual(0, write.bytesAdded);
-			Assert.AreEqual(4, write.offset);
+			Assert.AreEqual(4, write.localStartOffset);
 		}
 
 		[Test]
@@ -149,7 +149,7 @@ namespace InfinityModTool.Test
 
 			Assert.AreEqual(4, write.bytesWritten);
 			Assert.AreEqual(-10, write.bytesAdded);
-			Assert.AreEqual(6, write.offset);
+			Assert.AreEqual(6, write.localStartOffset);
 		}
 
 		[Test]
@@ -159,7 +159,7 @@ namespace InfinityModTool.Test
 
 			Assert.AreEqual(4, write.bytesWritten);
 			Assert.AreEqual(2, write.bytesAdded);
-			Assert.AreEqual(6, write.offset);
+			Assert.AreEqual(6, write.localStartOffset);
 		}
 
 		[Test]
@@ -233,37 +233,37 @@ namespace InfinityModTool.Test
 			Assert.AreEqual("abcdTestTest2klmnopqrstuvqxyz1234567890", result);
 		}
 
-		[Test]
-		public void ValidateText_WriteRange_MultipleWrites_Overlap_SmallerRange()
-		{
-			var write = fileWriter.WriteToFileRange(tempFile, "Test1", 4, 6, false);
-			var write2 = fileWriter.WriteToFileRange(tempFile, "Test2", 5, 7, false);
+		//[Test]
+		//public void ValidateText_WriteRange_MultipleWrites_Overlap_SmallerRange()
+		//{
+		//	var write = fileWriter.WriteToFileRange(tempFile, "Test1", 4, 6, false);
+		//	var write2 = fileWriter.WriteToFileRange(tempFile, "Test2", 5, 7, false);
 
-			var result = File.ReadAllText(tempFile);
+		//	var result = File.ReadAllText(tempFile);
 
-			Assert.Fail(); // TODO: This behaviour needs to be defined
-		}
+		//	Assert.Fail(); // TODO: This behaviour needs to be defined
+		//}
 
-		[Test]
-		public void ValidateText_WriteRange_MultipleWrites_Overlap_LargerRange_Inside()
-		{
-			var write = fileWriter.WriteToFileRange(tempFile, "Test1", 4, 12, false);
-			var write2 = fileWriter.WriteToFileRange(tempFile, "Test2", 5, 7, false);
+		//[Test]
+		//public void ValidateText_WriteRange_MultipleWrites_Overlap_LargerRange_Inside()
+		//{
+		//	var write = fileWriter.WriteToFileRange(tempFile, "Test1", 4, 12, false);
+		//	var write2 = fileWriter.WriteToFileRange(tempFile, "Test2", 5, 7, false);
 
-			var result = File.ReadAllText(tempFile);
+		//	var result = File.ReadAllText(tempFile);
 
-			Assert.Fail(); // TODO: This behaviour should probably raise an error, since we're trying to write to bytes that were deleted
-		}
+		//	Assert.Fail(); // TODO: This behaviour should probably raise an error, since we're trying to write to bytes that were deleted
+		//}
 
-		[Test]
-		public void ValidateText_WriteRange_MultipleWrites_Overlap_LargerRange_Outside()
-		{
-			var write = fileWriter.WriteToFileRange(tempFile, "Test1", 4, 12, false);
-			var write2 = fileWriter.WriteToFileRange(tempFile, "Test2", 10, 11, false);
+		//[Test]
+		//public void ValidateText_WriteRange_MultipleWrites_Overlap_LargerRange_Outside()
+		//{
+		//	var write = fileWriter.WriteToFileRange(tempFile, "Test1", 4, 12, false);
+		//	var write2 = fileWriter.WriteToFileRange(tempFile, "Test2", 10, 11, false);
 
-			var result = File.ReadAllText(tempFile);
+		//	var result = File.ReadAllText(tempFile);
 
-			Assert.Fail(); // TODO: This behaviour should probably raise an error, since we're trying to write to bytes that were deleted
-		}
+		//	Assert.Fail(); // TODO: This behaviour should probably raise an error, since we're trying to write to bytes that were deleted
+		//}
 	}
 }

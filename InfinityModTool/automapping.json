@@ -1,0 +1,41 @@
+﻿{
+  "QuickBMSAutoMappings": [
+    {
+      "TargetDirectory": "[Game]\\assets\\presentation\\",
+      "FileFilter": "presentation.zip",
+      "Actions": [
+        {
+          "Action": "MoveFile",
+          "TargetFile": "[Game]\\assets\\presentation\\flash\\container.gfx",
+          "DestinationPath": "[Game]\\assets\\flash\\container.gfx"
+        }
+      ]
+    },
+    {
+      "TargetDirectory": "[Game]\\assets\\textures\\",
+      "FileFilter": "[a-gA-G0-9]+\\.zip",
+      "Actions": [
+        {
+          "Action": "MoveFiles",
+          "TargetDirectory": "[Game]\\assets\\textures\\textures",
+          "FileFilter": ".+\\.tbody",
+          "IncludeSubfolders": false,
+          "DestinationPath": "[Game]\\assets\\textures\\"
+        }
+      ]
+    },
+    {
+      "TargetDirectory": "[Game]\\assets\\ui\\virtualreadercharacters\\",
+      "FileFilter": "virtualreadercharacters.zip",
+      "Actions": [
+        {
+          "Action": "MoveFiles",
+          "TargetDirectory": "[Game]\\assets\\ui\\virtualreadercharacters\\textures",
+          "FileFilter": ".+\\.tbody",
+          "IncludeSubfolders": false,
+          "DestinationPath": "[Game]\\assets\\textures\\"
+        }
+      ]
+    }
+  ]
+}

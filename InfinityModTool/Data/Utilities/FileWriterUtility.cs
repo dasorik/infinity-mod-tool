@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json.Schema;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,16 +9,27 @@ namespace InfinityModTool.Utilities
 {
 	public struct FileWrite
 	{
-		public readonly long offset;
+		public readonly long localStartOffset;
+		public readonly long localEndOffset;
 		public readonly long bytesWritten;
 		public readonly long bytesAdded;
 
-		public FileWrite(long offset, long bytesWritten, long bytesAdded)
+		public FileWrite(long localStartOffset, long localEndOffset, long bytesWritten, long bytesAdded)
 		{
-			this.offset = offset;
+			this.localStartOffset = localStartOffset;
+			this.localEndOffset = localEndOffset;
 			this.bytesWritten = bytesWritten;
 			this.bytesAdded = bytesAdded;
 		}
+	}
+
+	public interface IWriteContent
+	{
+		long StartOffset { get; }
+		long? EndOffset { get; }
+		string DataFilePath { get; }
+		string Text { get; }
+		bool Replace { get; }
 	}
 
 	public class FileWriterUtility
@@ -28,6 +40,36 @@ namespace InfinityModTool.Utilities
 		{
 			byte[] buffer = Encoding.ASCII.GetBytes(text);
 			return WriteToFile(filePath, buffer, memoryOffset, insert, ignoreWriteCache);
+		}
+
+		public bool CanWrite(string targetFile, IWriteContent content)
+		{
+			// Check if we don't have any writes to the file yet
+			if (!writeCache.TryGetValue(targetFile, out List<FileWrite> fileWrites))
+				return true;
+
+			foreach (var write in fileWrites)
+			{
+				if (!CanWrite(content, write))
+					return false;
+			}
+
+			return true;
+		}
+
+		public bool CanWrite(IWriteContent content, FileWrite write)
+		{
+			long contentLength = content.EndOffset.HasValue ? content.EndOffset.Value - content.StartOffset : 0;
+			long contentEndOffset = content.StartOffset + contentLength;
+
+			bool startsInRange = content.StartOffset > write.localStartOffset && content.StartOffset < write.localEndOffset;
+			bool endsInRange = contentEndOffset > write.localStartOffset && contentEndOffset < write.localEndOffset;
+
+			// We're attempting to write to a section of the file that has been modified by another
+			if (startsInRange || (content.Replace && endsInRange))
+				return false;
+
+			return true;
 		}
 
 		public FileWrite WriteToFile(string filePath, byte[] buffer, long memoryOffset, bool insert, bool ignoreWriteCache)
@@ -50,7 +92,7 @@ namespace InfinityModTool.Utilities
 				Array.Copy(buffer, 0, tempBuffer, actualOffset, buffer.Length);
 			}
 
-			var writeInfo = InsertToWriteCache(filePath, memoryOffset, buffer.Length, insert ? buffer.Length : 0);
+			var writeInfo = InsertToWriteCache(filePath, memoryOffset, memoryOffset + (insert ? 0 : buffer.Length), buffer.Length, insert ? buffer.Length : 0);
 			File.WriteAllBytes(filePath, tempBuffer);
 
 			return writeInfo;
@@ -71,16 +113,16 @@ namespace InfinityModTool.Utilities
 			Array.Copy(textBuffer, 0, tempBuffer, actualStartOffset, textBuffer.Length);
 			Array.Copy(fileBytes, actualEndOffset, tempBuffer, actualStartOffset + textBuffer.LongLength, fileBytes.LongLength - actualEndOffset);
 
-			var writeInfo = InsertToWriteCache(filePath, startOffset, text.Length, text.Length - replaceRange);
+			var writeInfo = InsertToWriteCache(filePath, startOffset, endOffset, text.Length, text.Length - replaceRange);
 			File.WriteAllBytes(filePath, tempBuffer);
 
 			return writeInfo;
 		}
 
 		// TODO: We need a nice way to deal with removal of text
-		private FileWrite InsertToWriteCache(string filePath, long offset, long bytesWritten, long bytesAdded)
+		private FileWrite InsertToWriteCache(string filePath, long localStartOffset, long localEndOffset, long bytesWritten, long bytesAdded)
 		{
-			var writeInfo = new FileWrite(offset, bytesWritten, bytesAdded);
+			var writeInfo = new FileWrite(localStartOffset, localEndOffset, bytesWritten, bytesAdded);
 
 			if (!writeCache.ContainsKey(filePath))
 				writeCache.Add(filePath, new List<FileWrite>());
@@ -94,12 +136,12 @@ namespace InfinityModTool.Utilities
 			if (!writeCache.ContainsKey(file))
 				return memoryOffset;
 
-			var orderedWrites = writeCache[file].OrderBy(w => w.offset);
+			var orderedWrites = writeCache[file].OrderBy(w => w.localStartOffset);
 			long newMemoryOffset = 0;
 
 			foreach (var write in orderedWrites)
 			{
-				if (write.offset <= memoryOffset)
+				if (write.localStartOffset <= memoryOffset)
 					newMemoryOffset += write.bytesAdded;
 				else
 					break;
