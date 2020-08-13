@@ -6,8 +6,7 @@ _NOTE! - This tool is under active development, so old versions of mods may not 
 
 ## Upcoming Features
 
-- Support for playsets
-- Support for other types of mods
+- Expanded file patching capabilities
 
 ## Creating Character Mods
 
