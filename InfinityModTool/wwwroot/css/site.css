@@ -40,7 +40,7 @@ app {
 }
 
 .top-row {
-    height: 3.5rem;
+    height: 3.25rem;
     display: flex;
     align-items: center;
 }
@@ -70,16 +70,18 @@ app {
 }
 
     .sidebar .top-row {
-        background-color: rgba(0,0,0,0.4);
+        background-color: rgba(0,0,0,0.2);
     }
 
     .sidebar .navbar-brand {
-        font-size: 1.1rem;
+        margin-left: 70px;
+        font-size: 1.3rem;
+        font-family: BebasNeue, Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
     }
 
     .sidebar .oi {
         width: 2rem;
-        font-size: 1.1rem;
+        font-size: 1.4rem;
         vertical-align: text-top;
         top: -2px;
     }
@@ -212,12 +214,13 @@ app {
 }
 
 .tool-logo {
-    width: 40px;
-    height: 40px;
+    width: 80px;
+    height: 80px;
     background-size: cover;
-    display: inline-block;
-    vertical-align: middle;
-    background-image: url('../img/logo.svg');
+    position: absolute;
+    top: -10px;
+    left: 0px;
+    background-image: url('../img/logo_bookmark.svg');
 }
 
 .nav-link {
