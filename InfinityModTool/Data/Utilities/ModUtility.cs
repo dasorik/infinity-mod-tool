@@ -102,6 +102,9 @@ namespace InfinityModTool.Utilities
 			{
 				Logging.LogMessage(ex.ToString(), Logging.LogSeverity.Error);
 
+				if (Directory.Exists(tempFolder))
+					Directory.Delete(tempFolder, true);
+
 				if (reverting)
 				{
 					// If we error out during revert, delete everything (something has gone badly wrong)
@@ -117,7 +120,8 @@ namespace InfinityModTool.Utilities
 			}
 			finally
 			{
-				Directory.Delete(tempFolder, true);
+				if (Directory.Exists(tempFolder))
+					Directory.Delete(tempFolder, true);
 			}
 
 			return InstallationStatus.Success;
