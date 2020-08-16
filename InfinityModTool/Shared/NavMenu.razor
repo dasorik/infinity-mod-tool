@@ -10,6 +10,9 @@
 
 <div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
     <ul class="nav flex-column">
+        <li class="px-4 flex-container nav-header">
+            <span>Modding</span><hr />
+        </li>
         <li class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
                 <span class="nav-icon all" aria-hidden="true"></span> All
@@ -40,8 +43,8 @@
                 <span class="nav-icon misc" aria-hidden="true"></span> Miscellaneous
             </NavLink>
         </li>
-        <li class="px-4">
-            <hr />
+        <li class="px-4 flex-container nav-header">
+            <span>Settings</span><hr />
         </li>
         <li class="nav-item px-3">
             <NavLink class="nav-link" href="Settings" Match="NavLinkMatch.All">
@@ -53,18 +56,26 @@
                 <span class="nav-icon logs" aria-hidden="true"></span> Logs
             </NavLink>
         </li>
+        <li class="px-4 flex-container nav-header">
+            <span>Social</span><hr />
+        </li>
+        <li class="nav-item px-3">
+            <NavLink class="nav-link" href="https://www.youtube.com/watch?v=T-zFKuz8XIQ" target="_blank" Match="NavLinkMatch.All">
+                <span class="nav-icon project-infinity" aria-hidden="true"></span> Project Infinity
+            </NavLink>
+        </li>
 
         @*@if (modService.Settings.ModdingToolsEnabled)
-        {
-            <li class="nav-item px-3">
-                <NavLink class="nav-link" href="Tools">
-                    <span class="nav-icon gear" aria-hidden="true"></span> Modding Tools
-                </NavLink>
-            </li>
-        }*@
+            {
+                <li class="nav-item px-3">
+                    <NavLink class="nav-link" href="Tools">
+                        <span class="nav-icon gear" aria-hidden="true"></span> Modding Tools
+                    </NavLink>
+                </li>
+            }*@
     </ul>
 
-    <span class="version-number">v0.0.1</span>
+    <span class="version-number">Infinity Mod Tool - v0.0.2</span>
 </div>
 
 @code {
