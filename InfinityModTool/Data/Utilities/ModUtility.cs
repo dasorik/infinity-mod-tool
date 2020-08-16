@@ -301,7 +301,8 @@ namespace InfinityModTool.Utilities
 
 			foreach (var file in GetFilteredFilesFromDirectory(physicalDirectoryPath, modAction.action.FileFilter, modAction.action.IncludeSubfolders))
 			{
-				var status = MoveFile(file, Path.Combine(physicalDestinationPath, new FileInfo(file).Name), modAction.mod);
+				var relativePath = file.Substring(physicalDirectoryPath.Length).TrimStart('\\').TrimStart('/');
+				var status = MoveFile(file, Path.Combine(physicalDestinationPath, relativePath), modAction.mod);
 
 				if (status != InstallationStatus.Success)
 					return status;
@@ -351,7 +352,8 @@ namespace InfinityModTool.Utilities
 
 			foreach (var file in GetFilteredFilesFromDirectory(physicalDirectoryPath, modAction.action.FileFilter, modAction.action.IncludeSubfolders))
 			{
-				var status = ReplaceFile(file, Path.Combine(physicalDestinationPath, new FileInfo(file).Name), modAction.mod);
+				var relativePath = file.Substring(physicalDirectoryPath.Length).TrimStart('\\').TrimStart('/');
+				var status = ReplaceFile(file, Path.Combine(physicalDestinationPath, relativePath), modAction.mod);
 
 				if (status != InstallationStatus.Success)
 					return status;
@@ -387,7 +389,8 @@ namespace InfinityModTool.Utilities
 
 			foreach (var file in GetFilteredFilesFromDirectory(physicalDirectoryPath, modAction.action.FileFilter, modAction.action.IncludeSubfolders))
 			{
-				var status = CopyFile(file, Path.Combine(physicalDestinationPath, new FileInfo(file).Name), modAction.mod);
+				var relativePath = file.Substring(physicalDirectoryPath.Length).TrimStart('\\').TrimStart('/');
+				var status = CopyFile(file, Path.Combine(physicalDestinationPath, relativePath), modAction.mod);
 
 				if (status != InstallationStatus.Success)
 					return status;

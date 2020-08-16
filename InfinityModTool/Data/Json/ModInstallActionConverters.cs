@@ -33,8 +33,12 @@ namespace InfinityModTool
                 item = new DeleteFilesAction();
             else if (actionType.Equals("ReplaceFile", StringComparison.InvariantCultureIgnoreCase))
                 item = new ReplaceFileAction();
+            else if (actionType.Equals("ReplaceFiles", StringComparison.InvariantCultureIgnoreCase))
+                item = new ReplaceFilesAction();
             else if (actionType.Equals("CopyFile", StringComparison.InvariantCultureIgnoreCase))
                 item = new CopyFileAction();
+            else if (actionType.Equals("CopyFiles", StringComparison.InvariantCultureIgnoreCase))
+                item = new CopyFilesAction();
             else if (actionType.Equals("WriteToFile", StringComparison.InvariantCultureIgnoreCase))
                 item = new WriteToFileAction();
             else if (actionType.Equals("QuickBMSExtract", StringComparison.InvariantCultureIgnoreCase))
