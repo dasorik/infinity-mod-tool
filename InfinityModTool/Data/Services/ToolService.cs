@@ -1,12 +1,6 @@
-﻿using ElectronNET.API.Entities;
-using InfinityModTool.Data;
-using InfinityModTool.Data.Modifications;
-using InfinityModTool.Data.Utilities;
-using InfinityModTool.Utilities;
+﻿using InfinityModFramework.Utilities;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace InfinityModTool.Services

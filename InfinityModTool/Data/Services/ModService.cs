@@ -1,49 +1,61 @@
-using InfinityModTool.Data;
-using InfinityModTool.Data.Modifications;
-using InfinityModTool.Data.Utilities;
-using InfinityModTool.Enums;
+using InfinityModFramework.Utilities;
+using InfinityModFramework.Enums;
+using InfinityModFramework.Models;
 using InfinityModTool.Models;
-using InfinityModTool.Utilities;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Tewr.Blazor.FileReader;
+using InfinityModFramework;
+using InfinityModFramework.Common.Logging;
 
 namespace InfinityModTool.Services
 {
 	public class ModService
 	{
-		const string USER_SETTINGS = "UserSettings";
-		const double CurrentVersion = 2.0;
-
-		public ListOption[] IDNames { get; private set; }
-
 		public UserModData Settings = new UserModData();
 		public BaseModConfiguration[] AvailableMods = new BaseModConfiguration[0];
+		public List<ModLoadResult> ModLoadResults = new List<ModLoadResult>();
 
 		public bool ModLoadWarningShown = false;
-		public List<ModLoaderUtility.ModLoadResult> ModLoadResults = new List<ModLoaderUtility.ModLoadResult>();
+		public ILogger logger = new AppLogger();
 
+		string userSaveDataPath = Path.Combine(Global.APP_DATA_FOLDER, "UserSettings.json");
+		string backupFolder = Path.Combine(Global.APP_DATA_FOLDER, "Backup");
+		string tempFolder = Path.Combine(Global.APP_DATA_FOLDER, "Temp");
+		string modCacheFolder = Path.Combine(Global.APP_DATA_FOLDER, "ModCache");
+		string modFolder = Path.Combine(Global.APP_DATA_FOLDER, "Mods");
 
 		public ModService()
 		{
-			Logging.LogMessage("Loading user settings...", Logging.LogSeverity.Info);
-			this.Settings = SettingsUtility.LoadSettings<UserModData>(USER_SETTINGS);
+			this.Settings = LoadSettings();
 
 			if (Settings.InstalledMods == null)
 				Settings.InstalledMods = new List<ModInstallationData>();
 
-			this.IDNames = ModUtility.GetIDNameListOptions();
 			ReloadMods();
+		}
+
+		private Configuration GetConfiguration()
+		{
+			return new Configuration() {
+				SteamInstallationPath = Settings.SteamInstallationPath,
+				BackupFolder = backupFolder,
+				TempFolder = tempFolder,
+				ModCacheFolder = modCacheFolder
+			};
 		}
 
 		public void ReloadMods()
 		{
-			Logging.LogMessage("Loading Mods...", Logging.LogSeverity.Info);
+			logger.Log("Reloading Mods...", LogSeverity.Info);
 
 			this.ModLoadWarningShown = false;
-			this.AvailableMods = ModLoaderUtility.LoadMods(Settings.AvailableMods, ModLoadResults);
+
+			var modLoader = new ModLoader(GetConfiguration(), logger);
+			var modPaths = Settings.AvailableMods.Select(m => Path.Combine(modFolder, m)).ToList();
+
+			this.AvailableMods = modLoader.LoadMods(modPaths, ModLoadResults);
 
 			foreach (var mod in this.ModLoadResults)
 			{
@@ -51,16 +63,16 @@ namespace InfinityModTool.Services
 					continue;
 
 				foreach (var error in mod.loadErrors)
-					Logging.LogMessage($"{mod.modFileName} - {error}", Logging.LogSeverity.Error);
+					logger.Log($"{mod.modFileName} - {error}", LogSeverity.Error);
 			}
 
 			if (ModLoadResults.All(m => m.status == ModLoadStatus.Success))
-				Logging.LogMessage("Loaded all mods successfully!", Logging.LogSeverity.Info);
+				logger.Log("Loaded all mods successfully!", LogSeverity.Info);
 		}
 
 		public ModLoadStatus TryAddMod(string fileName, byte[] fileBytes)
 		{
-			var modInstallPath = Path.Combine(ModLoaderUtility.GetModPath(), fileName);
+			var modInstallPath = Path.Combine(modFolder, fileName);
 
 			if (File.Exists(modInstallPath))
 				modInstallPath = FileWriterUtility.GetUniqueFilePath(modInstallPath);
@@ -124,15 +136,6 @@ namespace InfinityModTool.Services
 			return string.Empty;
 		}
 
-		public ListOption[] GetAvailableReplacementCharacters(string idName)
-		{
-			var mod = GetMod<CharacterModConfiguration>(idName);
-			var takenNames = Settings.InstalledMods.Where(i => i.ModCategory == "Character" && i.Parameters.ContainsKey("ReplacementCharacter")).Select(i => i.Parameters["ReplacementCharacter"]);
-			var potentialNamePool = IDNames.Where(n => n.Value.Length == mod.PresentationData.Name.Length && !takenNames.Contains(n.Value));
-			
-			return potentialNamePool.ToArray();
-		}
-
 		public IEnumerable<BaseModConfiguration> GetModsForCategory(string category)
 		{
 			if (category == null)
@@ -152,28 +155,34 @@ namespace InfinityModTool.Services
 			return AvailableMods.FirstOrDefault(m => m.ModID == modID && m is T) as T;
 		}
 
-		public async Task<InstallInfo> InstallCharacterMod(ModInstallationData modToInstall)
+		public async Task<ModInstallResult> InstallMod(ModInstallationData modToInstall, bool ignoreWarnings)
 		{
-			return await UpdateModConfiguration(modToInstall, true);
+			return await UpdateModConfiguration(modToInstall, true, ignoreWarnings);
 		}
 
-		public async Task<InstallInfo> UninstallMod(string idName)
+		public async Task<ModInstallResult> UninstallMod(string idName, bool ignoreWarnings)
 		{
 			var modToRemove = Settings.InstalledMods.FirstOrDefault(m => m.ModID == idName);
-			return await UpdateModConfiguration(modToRemove, false);
+			return await UpdateModConfiguration(modToRemove, false, ignoreWarnings);
+		}
+
+		public UserModData LoadSettings()
+		{
+			logger.Log($"Saving user settings to {userSaveDataPath}", LogSeverity.Info);
+			return SettingsUtility.LoadSettings<UserModData>(userSaveDataPath);
 		}
 
 		public void SaveSettings()
 		{
-			SettingsUtility.SaveSettings(Settings, USER_SETTINGS);
+			logger.Log($"Saving user settings to {userSaveDataPath}", LogSeverity.Info);
+			SettingsUtility.SaveSettings(Settings, userSaveDataPath);
 		}
 
-		private async Task<InstallInfo> UpdateModConfiguration(ModInstallationData mod, bool install)
+		private async Task<ModInstallResult> UpdateModConfiguration(ModInstallationData mod, bool install, bool ignoreWarnings)
 		{
 			if (!CheckSteamPathSettings())
 				throw new System.Exception("Cannot apply mods if the steam installation path has not been set");
 
-			var configuration = new Configuration() { SteamInstallationPath = Settings.SteamInstallationPath };
 			var allMods = new List<ModInstallationData>(Settings.InstalledMods);
 
 			if (install)
@@ -181,13 +190,13 @@ namespace InfinityModTool.Services
 			else
 				allMods.Remove(mod);
 
-			var gameModifications = allMods.Select(i => new GameModification() { 
+			var gameModifications = allMods.Select(i => new ModInstallationInfo() { 
 				Config = GetMod(i.ModID),
 				Parameters = i.Parameters
 			}).ToArray();
 
-			var modUtility = new ModUtility(configuration);
-			var result = await modUtility.ApplyChanges(gameModifications, false);
+			var modUtility = new ModInstaller(GetConfiguration(), new Integrations.DisneyInfinityIntegration());
+			var result = await modUtility.ApplyChanges(gameModifications, ignoreWarnings);
 
 			switch (result)
 			{
@@ -205,13 +214,14 @@ namespace InfinityModTool.Services
 
 			SaveSettings();
 
-			return new InstallInfo(result, modUtility.conflicts);
+			return new ModInstallResult(result, modUtility.conflicts);
 		}
 
 		public void DeleteMod(string modID)
 		{
 			var loadedMod = ModLoadResults.First(m => m.modID == modID);
-			ModLoaderUtility.DeleteMod(loadedMod);
+			
+			File.Delete(Path.Combine(modFolder, loadedMod.modFileName));
 
 			Settings.AvailableMods.Remove(loadedMod.modFileName);
 			ReloadMods();

@@ -1,6 +1,9 @@
 ﻿@page "/Settings"
 @inject InfinityModTool.Services.ModService modService;
 
+@using InfinityModFramework.Enums;
+@using InfinityModFramework.Common;
+
 <h1>Settings</h1>
 
 <hr />
@@ -35,7 +38,7 @@
     private bool modToolsEnabled;
     private string steamInstallationPath;
 
-    private Data.ValidationResponse steamPathValidation;
+    private ValidationResponse steamPathValidation;
 
     string SteamInstallationPath
     {
@@ -62,19 +65,19 @@
         saveEnabled = enableSave;
     }
 
-    Data.ValidationResponse ValidateSteamInstallationPath()
+    ValidationResponse ValidateSteamInstallationPath()
     {
         if (string.IsNullOrEmpty(steamInstallationPath))
-            return new Data.ValidationResponse(Data.ValidationSeverity.None);
+            return new ValidationResponse(ValidationSeverity.None);
 
         if (!System.IO.Directory.Exists(steamInstallationPath))
-            return new Data.ValidationResponse(Data.ValidationSeverity.Error, "The provided path is not a valid Disney Infinity 3.0 installation folder");
+            return new ValidationResponse(ValidationSeverity.Error, "The provided path is not a valid Disney Infinity 3.0 installation folder");
 
         if (!System.IO.File.Exists(System.IO.Path.Combine(steamInstallationPath, "DisneyInfinity3.exe"))
             || !System.IO.Directory.Exists(System.IO.Path.Combine(steamInstallationPath, "assets", "presentation")))
-            return new Data.ValidationResponse(Data.ValidationSeverity.Error, "The provided path is not a valid Disney Infinity 3.0 installation folder");
+            return new ValidationResponse(ValidationSeverity.Error, "The provided path is not a valid Disney Infinity 3.0 installation folder");
 
-        return new Data.ValidationResponse(Data.ValidationSeverity.None);
+        return new ValidationResponse(ValidationSeverity.None);
     }
 
     void SaveSettings()

@@ -1,16 +1,16 @@
 {
   "executable": "InfinityModTool",
   "splashscreen": {
-    "imageFile": ""
+    "imageFile": "wwwroot/img/logo.png"
   },
   "name": "InfinityModTool",
-  "author": "",
+  "author": "Dasorik",
   "singleInstance": false,
   "build": {
-    "appId": "com.InfinityModTool.app",
+    "appId": "com.infinitymodtool.app",
     "productName": "InfinityModTool",
     "copyright": "Copyright © 2020",
-    "buildVersion": "1.0.0",
+    "buildVersion": "0.0.3",
     "compression": "maximum",
     "directories": {
       "output": "../../../bin/Desktop"

@@ -13,6 +13,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\InfinityModFramework\InfinityModFramework.csproj" />
+    <ProjectReference Include="..\InfinityModTool.Common\InfinityModFramework.Common.csproj" />
     <ProjectReference Include="..\InfinityModTool\InfinityModTool.csproj" />
   </ItemGroup>
 

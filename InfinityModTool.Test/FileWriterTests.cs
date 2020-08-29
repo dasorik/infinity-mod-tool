@@ -1,6 +1,6 @@
 using NUnit.Framework;
-using InfinityModTool;
-using InfinityModTool.Utilities;
+using InfinityModFramework;
+using InfinityModFramework.Utilities;
 using System.IO;
 using System.Collections.Generic;
 using System.Reflection;

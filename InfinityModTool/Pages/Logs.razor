@@ -1,11 +1,13 @@
 ﻿@page "/Logs"
 
+@using InfinityModFramework.Common.Logging;
+
 <h1>Logs</h1>
 
 <hr />
 
 <div class="log-textarea">
-@foreach(var log in InfinityModTool.Utilities.Logging.GetLogs())
+@foreach(var log in InfinityModTool.AppLogger.GetLogs())
 {
     <span class="@GetLogSeverityClass(log.severity)">[@log.date.ToString("dd/MM/yyyy hh:sstt")] - @log.message</span>
 }
@@ -13,13 +15,13 @@
 
 @code {
 
-    public string GetLogSeverityClass(InfinityModTool.Utilities.Logging.LogSeverity severity)
+    public string GetLogSeverityClass(LogSeverity severity)
     {
         switch (severity)
         {
-            case InfinityModTool.Utilities.Logging.LogSeverity.Warning:
+            case LogSeverity.Warning:
                 return "warning";
-            case InfinityModTool.Utilities.Logging.LogSeverity.Error:
+            case LogSeverity.Error:
                 return "error";
         }
 

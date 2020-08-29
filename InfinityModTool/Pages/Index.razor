@@ -1,11 +1,14 @@
 ﻿@page "/"
 @page "/mods"
 @page "/mods/{category}"
+
 @using System.IO;
+@using InfinityModFramework.Utilities;
+@using InfinityModFramework.Models;
+@using InfinityModTool.Models;
+
 @inject InfinityModTool.Services.ModService modService;
 @inject Tewr.Blazor.FileReader.IFileReaderService fileReaderService;
-
-@using InfinityModTool.Utilities;
 
 
 @if (showLoadingIcon)
@@ -16,11 +19,6 @@
 @if (confirmConfig?.CanShow ?? false)
 {
     <PopupConfirm Type="@confirmConfig.level" Title="@confirmConfig.title" Message="@confirmConfig.message" ConfirmedChanged="async (confirmed) => { confirmConfig.Hide(); if (confirmed) await confirmConfig.confirmAction?.Invoke(); }"></PopupConfirm>
-}
-
-@if (replaceConfig?.CanShow ?? false)
-{
-    <PopupConfirmReplace Type="@replaceConfig.level" Title="@replaceConfig.title" Message="@replaceConfig.message" ConfirmedPressed="async (id) => { replaceConfig.Hide(); await replaceConfig.confirmAction?.Invoke(id); }" CancelPressed="() => replaceConfig = null" Options="@modService.GetAvailableReplacementCharacters(installContext.ModID)"></PopupConfirmReplace>
 }
 
 @if (alertConfig?.CanShow ?? false)
@@ -58,17 +56,16 @@
 
     bool showLoadingIcon = false;
     ConfirmationDialogConfig confirmConfig = null;
-    ConfirmationDialogConfig<string> replaceConfig = null;
     AlertDialogConfig alertConfig = null;
 
     bool install = false;
     bool requiresReplacement = false;
-    InfinityModTool.Data.ModInstallationData installContext;
+    ModInstallationData installContext;
 
     string warningMessage = null;
     string alertMessage = null;
 
-    IEnumerable<InfinityModTool.Data.BaseModConfiguration> mods = new InfinityModTool.Data.BaseModConfiguration[] { };
+    IEnumerable<BaseModConfiguration> mods = new BaseModConfiguration[] { };
 
     protected override void OnParametersSet()
     {
@@ -77,6 +74,25 @@
 
         mods = modService.GetModsForCategory(category);
         CheckForUnloadedMods();
+    }
+
+    void CheckForUnloadedMods()
+    {
+        // Don't show if we've already shown
+        if (modService.ModLoadWarningShown)
+            return;
+
+        var failedModLoads = modService.ModLoadResults.Where(r => !(new[] { InfinityModFramework.Enums.ModLoadStatus.Success }.Contains(r.status)));
+
+        if (failedModLoads.Count() > 0)
+        {
+            ShowAlertDialog(
+                title: "Mods Failed to Load",
+                message: $"The following mods failed to load (check logs for details): {string.Join(", ", failedModLoads.Select(r => $"{r.modFileName} - {r.status}"))}",
+                level: AlertLevel.Warning,
+                onClick: async () => { modService.ModLoadWarningShown = true; }
+            );
+        }
     }
 
     async Task ReadFile()
@@ -109,22 +125,22 @@
 
         switch (result)
         {
-            case Enums.ModLoadStatus.ConfigInvalid:
+            case InfinityModFramework.Enums.ModLoadStatus.ConfigInvalid:
                 errorMessage = "The selected mod is not configured properly. Please check the config.json file (see logs for details)";
                 break;
-            case Enums.ModLoadStatus.DuplicateID:
+            case InfinityModFramework.Enums.ModLoadStatus.DuplicateID:
                 errorMessage = "A mod with the same ID has already been added";
                 break;
-            case Enums.ModLoadStatus.ExtensionInvalid:
+            case InfinityModFramework.Enums.ModLoadStatus.ExtensionInvalid:
                 errorMessage = "The selected mod is not a mod file";
                 break;
-            case Enums.ModLoadStatus.NoConfig:
+            case InfinityModFramework.Enums.ModLoadStatus.NoConfig:
                 errorMessage = "No config could be found on the selected mod";
                 break;
-            case Enums.ModLoadStatus.UnspecifiedFailure:
+            case InfinityModFramework.Enums.ModLoadStatus.UnspecifiedFailure:
                 errorMessage = "An error occuring trying to load the selected mod";
                 break;
-            case Enums.ModLoadStatus.UnsupportedVersion:
+            case InfinityModFramework.Enums.ModLoadStatus.UnsupportedVersion:
                 errorMessage = "The version number of this mod is not supported by this version of the mod installer";
                 break;
         }
@@ -173,25 +189,6 @@
         mods = modService.GetModsForCategory(category);
     }
 
-    void CheckForUnloadedMods()
-    {
-        // Don't show if we've already shown
-        if (modService.ModLoadWarningShown)
-            return;
-
-        var failedModLoads = modService.ModLoadResults.Where(r => !(new[] { Enums.ModLoadStatus.Success }.Contains(r.status)));
-
-        if (failedModLoads.Count() > 0)
-        {
-            ShowAlertDialog(
-                title: "Mods Failed to Load",
-                message: $"The following mods failed to load (check logs for details): {string.Join(", ", failedModLoads.Select(r => $"{r.modFileName} - {r.status}"))}",
-                level: AlertLevel.Warning,
-                onClick: async () => { modService.ModLoadWarningShown = true; }
-            );
-        }
-    }
-
     void SelectMod(string modID)
     {
         if (string.IsNullOrEmpty(modService.Settings.SteamInstallationPath))
@@ -207,22 +204,9 @@
 
         var modData = modService.GetMod(modID);
         install = !modService.IsModInstalled(modID);
-        installContext = new Data.ModInstallationData() { ModID = modData.ModID, ModCategory = modData.ModCategory };
+        installContext = new ModInstallationData() { ModID = modData.ModID };
 
-        if (modData.ModCategory == "Character")
-            SelectCharacterMod(modData as Data.CharacterModConfiguration);
-        else
-            ShowInstallConfirmationDialog();
-    }
-
-    void SelectCharacterMod(Data.CharacterModConfiguration modData)
-    {
-        requiresReplacement = modData?.ReplaceCharacter ?? false;
-
-        if (requiresReplacement && install)
-            ShowReplaceConfirmationDialog();
-        else
-            ShowInstallConfirmationDialog();
+        ShowInstallConfirmationDialog();
     }
 
     void ShowInstallConfirmationDialog()
@@ -233,19 +217,6 @@
             level: AlertLevel.Warning,
             confirmAction: () => InstallUninstall(installContext)
         );
-    }
-
-    void ShowReplaceConfirmationDialog()
-    {
-        replaceConfig = new ConfirmationDialogConfig<string>()
-        {
-            title = GetInstallMessage(),
-            message = "Please select a character below to replace, This will modify your Disney Infinity 3.0 game installation",
-            level = AlertLevel.Warning,
-            confirmAction = (id) => InstallUninstall(id, installContext)
-        };
-
-        replaceConfig.Show();
     }
 
     void ShowAlertDialog(string title, string message, AlertLevel level, Func<Task> onClick = null)
@@ -274,40 +245,40 @@
         confirmConfig.Show();
     }
 
-    async Task InstallUninstall(string selectedCharacterID, Data.ModInstallationData modification, bool ignoreWarnings = false)
+    async Task InstallUninstall(string selectedCharacterID, ModInstallationData modification, bool ignoreWarnings = false)
     {
         modification.Parameters.Add("ReplacementCharacter", selectedCharacterID);
         await InstallUninstall(modification, ignoreWarnings);
     }
 
-    async Task InstallUninstall(Data.ModInstallationData modification, bool ignoreWarnings = false)
+    async Task InstallUninstall(ModInstallationData modification, bool ignoreWarnings = false)
     {
         showLoadingIcon = true;
 
-        InfinityModTool.Models.InstallInfo installStatus;
+        ModInstallResult installStatus;
 
         if (install)
-            installStatus = await modService.InstallCharacterMod(modification);
+            installStatus = await modService.InstallMod(modification, ignoreWarnings);
         else
-            installStatus = await modService.UninstallMod(modification.ModID);
+            installStatus = await modService.UninstallMod(modification.ModID, ignoreWarnings);
 
         switch (installStatus.status)
         {
-            case Enums.InstallationStatus.FatalError:
+            case InfinityModFramework.Enums.InstallationStatus.FatalError:
                 ShowAlertDialog(
                     title: "Oops, something went wrong!",
                     message: "Something went wrong during mod installation. All mods have been uninstalled, and your game has been restored",
                     level: AlertLevel.Error
                 );
                 break;
-            case Enums.InstallationStatus.RolledBackError:
+            case InfinityModFramework.Enums.InstallationStatus.RolledBackError:
                 ShowAlertDialog(
                     title: "Oops, something went wrong!",
                     message: "Something went wrong during mod installation. The selected mod has not been installed",
                     level: AlertLevel.Error
                 );
                 break;
-            case Enums.InstallationStatus.UnresolvableConflict:
+            case InfinityModFramework.Enums.InstallationStatus.UnresolvableConflict:
                 var conflict = installStatus.conflicts.First();
                 ShowAlertDialog(
                     title: "Mod conflict detected",
@@ -315,13 +286,13 @@
                     level: AlertLevel.Error
                 );
                 break;
-            case Enums.InstallationStatus.ResolvableConflict:
+            case InfinityModFramework.Enums.InstallationStatus.ResolvableConflict:
                 var potentialConflict = installStatus.conflicts.First();
                 ShowConfirmDialog(
                     title: $"Potential conflict detected",
                     message: $"The mod being installed has potential conflicts with the following installed mod: {potentialConflict.modID} \nInstall mod anyway?",
                     level: AlertLevel.Warning,
-                    confirmAction: () => InstallUninstall(installContext, true)
+                    confirmAction: () => InstallUninstall(modification, true)
                 );
                 break;
         }

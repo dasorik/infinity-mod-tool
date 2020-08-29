@@ -1,9 +1,7 @@
-﻿using InfinityModTool.Data;
-using InfinityModTool.Data.InstallActions;
-using InfinityModTool.Data.Modifications;
-using InfinityModTool.Enums;
-using InfinityModTool.Models;
-using InfinityModTool.Utilities;
+﻿using InfinityModFramework.Enums;
+using InfinityModFramework.InstallActions;
+using InfinityModFramework.Models;
+using InfinityModFramework.Utilities;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -72,8 +70,8 @@ namespace InfinityModTool.Test
 			};
 
 			var fileWriter = new FileWriterUtility();
-			var content = new WriteToFileAction.WriteContent() { Text = "Test", StartOffset = 12 };
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Edit" } };
+			var content = new WriteContent() { Text = "Test", StartOffset = 12 };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Edit" } };
 
 			bool hasCollision = ModCollisionTracker.HasEditCollision(mod, exampleFile1, content, fileWriter, actions, out var collision);
 
@@ -92,8 +90,8 @@ namespace InfinityModTool.Test
 			};
 
 			var fileWriter = new FileWriterUtility();
-			var content = new WriteToFileAction.WriteContent() { Text = "Test", StartOffset = 12 };
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Edit" } };
+			var content = new WriteContent() { Text = "Test", StartOffset = 12 };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Edit" } };
 
 			bool hasCollision = ModCollisionTracker.HasEditCollision(mod, exampleFile1, content, fileWriter, actions, out var collision);
 
@@ -112,8 +110,8 @@ namespace InfinityModTool.Test
 			};
 
 			var fileWriter = new FileWriterUtility();
-			var content = new WriteToFileAction.WriteContent() { Text = "Test", StartOffset = 12 };
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Edit" } };
+			var content = new WriteContent() { Text = "Test", StartOffset = 12 };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Edit" } };
 
 			bool hasCollision = ModCollisionTracker.HasEditCollision(mod, exampleFile1, content, fileWriter, actions, out var collision);
 
@@ -134,7 +132,7 @@ namespace InfinityModTool.Test
 				new MoveFileModification(exampleFile1, exampleDestination2, false, "Test.Move")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Move2" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Move2" } };
 			bool hasCollision = ModCollisionTracker.HasMoveCollision(mod, exampleFile1, exampleDestination1, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -151,7 +149,7 @@ namespace InfinityModTool.Test
 				new MoveFileModification(exampleFile1, exampleDestination1, false, "Test.Move")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Move2" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Move2" } };
 			bool hasCollision = ModCollisionTracker.HasMoveCollision(mod, exampleFile1, exampleDestination1, actions, out var collision);
 
 			Assert.AreEqual(false, hasCollision);
@@ -166,7 +164,7 @@ namespace InfinityModTool.Test
 				new AddFileModification(exampleDestination1, false, "Test.Move"),
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Move2" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Move2" } };
 			bool hasCollision = ModCollisionTracker.HasMoveCollision(mod, exampleFile2, exampleDestination1, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -184,7 +182,7 @@ namespace InfinityModTool.Test
 				new AddFileModification(exampleDestination1, false, "Test.Move"),
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Move2" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Move2" } };
 			bool hasCollision = ModCollisionTracker.HasMoveCollision(mod, exampleDestination3_exampleDestination1, exampleDestination1, actions, out var collision);
 
 			Assert.AreEqual(false, hasCollision);
@@ -198,7 +196,7 @@ namespace InfinityModTool.Test
 				new DeleteFileModification(exampleFile1, false, "Test.Delete")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Move" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Move" } };
 			bool hasCollision = ModCollisionTracker.HasMoveCollision(mod, exampleFile1, exampleDestination1, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -215,7 +213,7 @@ namespace InfinityModTool.Test
 				new ReplaceFileModification(exampleFile1, false, "Test.Replace")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Move2" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Move2" } };
 			bool hasCollision = ModCollisionTracker.HasMoveCollision(mod, exampleFile1, exampleDestination1, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -232,7 +230,7 @@ namespace InfinityModTool.Test
 				new EditFileModification(exampleFile1, false, "Test.Edit")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Move2" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Move2" } };
 			bool hasCollision = ModCollisionTracker.HasMoveCollision(mod, exampleFile1, exampleDestination1, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -249,7 +247,7 @@ namespace InfinityModTool.Test
 				new AddFileModification(exampleFile1, false, "Test.Add")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Move" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Move" } };
 			bool hasCollision = ModCollisionTracker.HasMoveCollision(mod, exampleFile2, exampleFile1, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -266,7 +264,7 @@ namespace InfinityModTool.Test
 				new AddFileModification(exampleFile2, false, "Test.Add")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Move" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Move" } };
 			bool hasCollision = ModCollisionTracker.HasMoveCollision(mod, exampleFile3, exampleFile1, actions, out var collision);
 
 			Assert.AreEqual(false, hasCollision);
@@ -282,7 +280,7 @@ namespace InfinityModTool.Test
 				new MoveFileModification(exampleFile1, "C:\\Example\\ExampleFile.txt", false, "Test.Move")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Replace" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Replace" } };
 			bool hasCollision = ModCollisionTracker.HasReplaceCollision(mod, exampleFile1, exampleFile2, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -299,7 +297,7 @@ namespace InfinityModTool.Test
 				new DeleteFileModification(exampleFile1, false, "Test.Delete")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Replace" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Replace" } };
 			bool hasCollision = ModCollisionTracker.HasReplaceCollision(mod, exampleFile1, exampleFile2, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -316,7 +314,7 @@ namespace InfinityModTool.Test
 				new EditFileModification(exampleFile1, false, "Test.Edit")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Replace" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Replace" } };
 			bool hasCollision = ModCollisionTracker.HasReplaceCollision(mod, exampleFile1, exampleFile2, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -333,7 +331,7 @@ namespace InfinityModTool.Test
 				new ReplaceFileModification(exampleFile1, false, "Test.Replace1")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Replace2" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Replace2" } };
 			bool hasCollision = ModCollisionTracker.HasReplaceCollision(mod, exampleFile1, testFile2, actions, out var collision);
 
 			Assert.AreEqual(true, hasCollision);
@@ -350,7 +348,7 @@ namespace InfinityModTool.Test
 				new ReplaceFileModification(exampleDestination1, false, "Test.Replace1")
 			};
 
-			var mod = new GameModification() { Config = new Data.BaseModConfiguration() { ModID = "Test.Replace2" } };
+			var mod = new ModInstallationInfo() { Config = new BaseModConfiguration() { ModID = "Test.Replace2" } };
 			bool hasCollision = ModCollisionTracker.HasReplaceCollision(mod, exampleFile1, exampleDestination3_exampleDestination1, actions, out var collision);
 
 			Assert.AreEqual(false, hasCollision);
