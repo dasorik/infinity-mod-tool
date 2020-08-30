@@ -1,4 +1,4 @@
-﻿using InfinityModFramework.Common.Logging;
+﻿using InfinityModEngine.Common.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;

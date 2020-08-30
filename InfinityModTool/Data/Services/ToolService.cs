@@ -1,4 +1,4 @@
-﻿using InfinityModFramework.Utilities;
+﻿using InfinityModEngine.Utilities;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -9,33 +9,12 @@ namespace InfinityModTool.Services
 	{
 		public async Task<bool> UnluacDecompileFolder(string folder)
 		{
-			try
-			{
-				await UnluacUtility.DecompileFolder(folder);
-				return true;
-			}
-			catch (Exception ex)
-			{
-				return false;
-			}
+			throw new NotImplementedException();
 		}
 
 		public async Task<bool> QuickBMSFolder(string folder, bool recursive)
 		{
-			try
-			{
-				foreach (var file in Directory.GetFiles(folder, "*.zip", SearchOption.AllDirectories))
-				{
-					var info = new FileInfo(file);
-					await QuickBMSUtility.ExtractFiles(file, info.DirectoryName);
-				}
-
-				return true;
-			}
-			catch (Exception ex)
-			{
-				return false;
-			}
+			throw new NotImplementedException();
 		}
 	}
 }

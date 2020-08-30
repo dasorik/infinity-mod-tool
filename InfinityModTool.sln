@@ -5,13 +5,11 @@ VisualStudioVersion = 16.0.29926.136
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InfinityModTool", "InfinityModTool\InfinityModTool.csproj", "{461BB105-9441-46FA-84F3-8073797F1D47}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InfinityModTool.Test", "InfinityModTool.Test\InfinityModTool.Test.csproj", "{3B6004A6-B687-4125-9F86-9946F837EF77}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InfinityModTool.Test", "InfinityModEngine.Test\InfinityModEngine.Test.csproj", "{3B6004A6-B687-4125-9F86-9946F837EF77}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfinityModFramework", "InfinityModFramework\InfinityModFramework.csproj", "{FD6B87F4-3702-44BA-8431-F99D6A8335BA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InfinityModEngine", "InfinityModEngine\InfinityModEngine.csproj", "{FD6B87F4-3702-44BA-8431-F99D6A8335BA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfinityModFramework.Common", "InfinityModTool.Common\InfinityModFramework.Common.csproj", "{3ABBCFFE-E244-49C8-BCF8-210688D87493}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Integration.DisneyInfinity3.0", "Integration.DisneyInfinity3.0\Integration.DisneyInfinity3.0.csproj", "{544D6AC7-A2AC-402F-A666-011EE2F421F2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InfinityModEngine.Common", "InfinityModEngine.Common\InfinityModEngine.Common.csproj", "{3ABBCFFE-E244-49C8-BCF8-210688D87493}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,10 +33,6 @@ Global
 		{3ABBCFFE-E244-49C8-BCF8-210688D87493}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3ABBCFFE-E244-49C8-BCF8-210688D87493}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3ABBCFFE-E244-49C8-BCF8-210688D87493}.Release|Any CPU.Build.0 = Release|Any CPU
-		{544D6AC7-A2AC-402F-A666-011EE2F421F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{544D6AC7-A2AC-402F-A666-011EE2F421F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{544D6AC7-A2AC-402F-A666-011EE2F421F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{544D6AC7-A2AC-402F-A666-011EE2F421F2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

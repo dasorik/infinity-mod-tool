@@ -1,21 +1,32 @@
-using InfinityModFramework.Utilities;
-using InfinityModFramework.Enums;
-using InfinityModFramework.Models;
+using InfinityModEngine.Utilities;
+using InfinityModEngine.Enums;
+using InfinityModEngine.Models;
 using InfinityModTool.Models;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using InfinityModFramework;
-using InfinityModFramework.Common.Logging;
+using InfinityModEngine;
+using InfinityModEngine.Common.Logging;
+using Newtonsoft.Json;
+using System.Reflection;
 
 namespace InfinityModTool.Services
 {
 	public class ModService
 	{
+#if DEBUG
+		const string TOOL_PATH = "..\\..\\..\\Tools";
+		const string INTEGRATION_PATH = "..\\..\\..\\Integrations";
+#else
+		const string TOOL_PATH = "Tools";
+		const string INTEGRATION_PATH = "Integrations";
+#endif
+
 		public UserModData Settings = new UserModData();
-		public BaseModConfiguration[] AvailableMods = new BaseModConfiguration[0];
-		public List<ModLoadResult> ModLoadResults = new List<ModLoadResult>();
+
+		public BaseModConfiguration[] AvailableMods;
+		public IEnumerable<ModLoadResult> ModLoadResults;
 
 		public bool ModLoadWarningShown = false;
 		public ILogger logger = new AppLogger();
@@ -39,10 +50,12 @@ namespace InfinityModTool.Services
 		private Configuration GetConfiguration()
 		{
 			return new Configuration() {
-				SteamInstallationPath = Settings.SteamInstallationPath,
+				TargetPath = Settings.SteamInstallationPath,
+				Modifications = Settings.FileModifications,
 				BackupFolder = backupFolder,
 				TempFolder = tempFolder,
-				ModCacheFolder = modCacheFolder
+				CacheFolder = modCacheFolder,
+				ToolPath = TOOL_PATH
 			};
 		}
 
@@ -53,9 +66,10 @@ namespace InfinityModTool.Services
 			this.ModLoadWarningShown = false;
 
 			var modLoader = new ModLoader(GetConfiguration(), logger);
-			var modPaths = Settings.AvailableMods.Select(m => Path.Combine(modFolder, m)).ToList();
+			var modPaths = Settings.AvailableMods.Select(m => Path.Combine(modFolder, m));
 
-			this.AvailableMods = modLoader.LoadMods(modPaths, ModLoadResults);
+			this.ModLoadResults = modLoader.LoadMods(modPaths.ToArray());
+			this.AvailableMods = ModLoadResults.Where(lr => lr.status == ModLoadStatus.Success).Select(lr => lr.modData).ToArray();
 
 			foreach (var mod in this.ModLoadResults)
 			{
@@ -75,7 +89,7 @@ namespace InfinityModTool.Services
 			var modInstallPath = Path.Combine(modFolder, fileName);
 
 			if (File.Exists(modInstallPath))
-				modInstallPath = FileWriterUtility.GetUniqueFilePath(modInstallPath);
+				modInstallPath = FileWriter.GetUniqueFilePath(modInstallPath);
 
 			var fileInfo = new FileInfo(modInstallPath);
 			File.WriteAllBytes(modInstallPath, fileBytes);
@@ -195,10 +209,16 @@ namespace InfinityModTool.Services
 				Parameters = i.Parameters
 			}).ToArray();
 
-			var modUtility = new ModInstaller(GetConfiguration(), new Integrations.DisneyInfinityIntegration());
+			// TODO: Load this differently going forward
+			var executionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+			var integrationPath = Path.Combine(executionPath, INTEGRATION_PATH, "disney-infinity.config.json");
+			var integrationData = File.ReadAllText(integrationPath);
+
+			var integration = JsonConvert.DeserializeObject<GameIntegration>(integrationData, new ModInstallActionConverter());
+			var modUtility = new ModInstaller(GetConfiguration(), integration);
 			var result = await modUtility.ApplyChanges(gameModifications, ignoreWarnings);
 
-			switch (result)
+			switch (result.status)
 			{
 				case InstallationStatus.Success:
 					Settings.InstalledMods = allMods;
@@ -210,16 +230,16 @@ namespace InfinityModTool.Services
 			}
 
 			Settings.FileModifications.Clear();
-			Settings.FileModifications.AddRange(modUtility.modifications);
+			Settings.FileModifications.AddRange(result.fileModifications);
 
 			SaveSettings();
 
-			return new ModInstallResult(result, modUtility.conflicts);
+			return result;
 		}
 
 		public void DeleteMod(string modID)
 		{
-			var loadedMod = ModLoadResults.First(m => m.modID == modID);
+			var loadedMod = ModLoadResults.First(m => m.modData?.ModID == modID);
 			
 			File.Delete(Path.Combine(modFolder, loadedMod.modFileName));
 

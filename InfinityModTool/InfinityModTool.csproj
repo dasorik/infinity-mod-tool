@@ -8,9 +8,8 @@
     <PackageReference Include="Tewr.Blazor.FileReader" Version="2.0.0.20200" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\InfinityModFramework\InfinityModFramework.csproj" />
-    <ProjectReference Include="..\InfinityModTool.Common\InfinityModFramework.Common.csproj" />
-    <ProjectReference Include="..\Integration.DisneyInfinity3.0\Integration.DisneyInfinity3.0.csproj" />
+    <ProjectReference Include="..\InfinityModEngine\InfinityModEngine.csproj" />
+    <ProjectReference Include="..\InfinityModEngine.Common\InfinityModEngine.Common.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="electron.manifest.json">

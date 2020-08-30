@@ -3,8 +3,9 @@
 @page "/mods/{category}"
 
 @using System.IO;
-@using InfinityModFramework.Utilities;
-@using InfinityModFramework.Models;
+@using InfinityModEngine.Utilities;
+@using InfinityModEngine.Models;
+@using InfinityModEngine.Enums; 
 @using InfinityModTool.Models;
 
 @inject InfinityModTool.Services.ModService modService;
@@ -82,7 +83,7 @@
         if (modService.ModLoadWarningShown)
             return;
 
-        var failedModLoads = modService.ModLoadResults.Where(r => !(new[] { InfinityModFramework.Enums.ModLoadStatus.Success }.Contains(r.status)));
+        var failedModLoads = modService.ModLoadResults.Where(r => !(new[] { ModLoadStatus.Success }.Contains(r.status)));
 
         if (failedModLoads.Count() > 0)
         {
@@ -125,22 +126,22 @@
 
         switch (result)
         {
-            case InfinityModFramework.Enums.ModLoadStatus.ConfigInvalid:
+            case ModLoadStatus.ConfigInvalid:
                 errorMessage = "The selected mod is not configured properly. Please check the config.json file (see logs for details)";
                 break;
-            case InfinityModFramework.Enums.ModLoadStatus.DuplicateID:
+            case ModLoadStatus.DuplicateID:
                 errorMessage = "A mod with the same ID has already been added";
                 break;
-            case InfinityModFramework.Enums.ModLoadStatus.ExtensionInvalid:
+            case ModLoadStatus.ExtensionInvalid:
                 errorMessage = "The selected mod is not a mod file";
                 break;
-            case InfinityModFramework.Enums.ModLoadStatus.NoConfig:
+            case ModLoadStatus.NoConfig:
                 errorMessage = "No config could be found on the selected mod";
                 break;
-            case InfinityModFramework.Enums.ModLoadStatus.UnspecifiedFailure:
+            case ModLoadStatus.UnspecifiedFailure:
                 errorMessage = "An error occuring trying to load the selected mod";
                 break;
-            case InfinityModFramework.Enums.ModLoadStatus.UnsupportedVersion:
+            case ModLoadStatus.UnsupportedVersion:
                 errorMessage = "The version number of this mod is not supported by this version of the mod installer";
                 break;
         }
@@ -264,21 +265,21 @@
 
         switch (installStatus.status)
         {
-            case InfinityModFramework.Enums.InstallationStatus.FatalError:
+            case InstallationStatus.FatalError:
                 ShowAlertDialog(
                     title: "Oops, something went wrong!",
                     message: "Something went wrong during mod installation. All mods have been uninstalled, and your game has been restored",
                     level: AlertLevel.Error
                 );
                 break;
-            case InfinityModFramework.Enums.InstallationStatus.RolledBackError:
+            case InstallationStatus.RolledBackError:
                 ShowAlertDialog(
                     title: "Oops, something went wrong!",
                     message: "Something went wrong during mod installation. The selected mod has not been installed",
                     level: AlertLevel.Error
                 );
                 break;
-            case InfinityModFramework.Enums.InstallationStatus.UnresolvableConflict:
+            case InstallationStatus.UnresolvableConflict:
                 var conflict = installStatus.conflicts.First();
                 ShowAlertDialog(
                     title: "Mod conflict detected",
@@ -286,7 +287,7 @@
                     level: AlertLevel.Error
                 );
                 break;
-            case InfinityModFramework.Enums.InstallationStatus.ResolvableConflict:
+            case InstallationStatus.ResolvableConflict:
                 var potentialConflict = installStatus.conflicts.First();
                 ShowConfirmDialog(
                     title: $"Potential conflict detected",

@@ -1,4 +1,4 @@
-﻿using InfinityModFramework.Models;
+﻿using InfinityModEngine.Models;
 using System.Collections.Generic;
 
 namespace InfinityModTool.Models
